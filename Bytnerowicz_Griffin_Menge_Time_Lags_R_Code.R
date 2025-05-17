@@ -11,6 +11,8 @@
 ### Load necessary packages
 library(bbmle)
 library(MASS)
+library(dplyr)
+library(stringr)
 
 ### Define necessary functions
 
@@ -26,91 +28,135 @@ up.rate<-function(K,r,t){
   y
 }
 
+
+# Function for effect of size (can also use with maximum SNF [set resp to max SNF])
+sigmoid.size<-function(K,a,b,tL,t,resp){
+  y<-K/(1+exp(-(a*resp + b)*(t-tL)))
+  y
+}
+
 ### Import data
 snf.data<-read.csv("snf_time_lags.csv")
 co2.data<-read.csv("co2_time_lags.csv")
-rinse<-read.csv("rinse_test.csv") #data for Figure S1
+rinse<-read.csv("rinse_test.csv") # data for Figure S1
+snf.raw.data<-read.csv("raw_Nfix.csv") # data for Figures S4, S5
+
+## Combine SNF data
+snf.full <- snf.data %>%
+  # join on Individual + Day, keep all rows from snf.data
+  left_join(
+    snf.raw.data %>%
+      dplyr::select(Individual, Day, Vmax.low, Vmax.mean, Vmax.high),
+    by = c("Individual","Day")
+  ) %>%
+  # rename the three Vmax.* cols
+  rename(
+    SNF.raw.low  = Vmax.low,
+    SNF.raw      = Vmax.mean,
+    SNF.raw.high = Vmax.high
+  ) %>%
+  # move SNF.raw to immediately left of SNF.raw.low
+  relocate(SNF.raw, .before = SNF.raw.low)
+
+## Convert acetylene reduction rates to N fixation rates
+snf.full <- snf.full %>%
+  mutate(
+    div_factor = case_when(
+      str_starts(Species, "M") ~ 4.98,
+      str_starts(Species, "A") ~ 3.15,
+      str_starts(Species, "G") ~ 3.84,
+      str_starts(Species, "R") ~ 4.27,
+      TRUE                      ~ 1 
+    ),
+    SNF.N2      = SNF      / div_factor,
+    SNF.N2.low  = SNF.low  / div_factor,
+    SNF.N2.high = SNF.high / div_factor,
+    SNF.raw      = SNF.raw      / div_factor,
+    SNF.raw.low  = SNF.raw.low  / div_factor,
+    SNF.raw.high = SNF.raw.high / div_factor
+  ) %>%
+  dplyr::select(-div_factor)  
 
 ### Subset N fixation data
-A21DA<-snf.data[snf.data$Individual=="ALRU21DA",]
-A21DB<-snf.data[snf.data$Individual=="ALRU21DB",]
-A21DC<-snf.data[snf.data$Individual=="ALRU21DC",]
-A21DD<-snf.data[snf.data$Individual=="ALRU21DD",]
+A21DA<-snf.full[snf.full$Individual=="ALRU21DA",]
+A21DB<-snf.full[snf.full$Individual=="ALRU21DB",]
+A21DC<-snf.full[snf.full$Individual=="ALRU21DC",]
+A21DD<-snf.full[snf.full$Individual=="ALRU21DD",]
 
-G21DA<-snf.data[snf.data$Individual=="GLSE21DA",]
-G21DB<-snf.data[snf.data$Individual=="GLSE21DB",]
-G21DC<-snf.data[snf.data$Individual=="GLSE21DC",]
-G21DD<-snf.data[snf.data$Individual=="GLSE21DD",]
+G21DA<-snf.full[snf.full$Individual=="GLSE21DA",]
+G21DB<-snf.full[snf.full$Individual=="GLSE21DB",]
+G21DC<-snf.full[snf.full$Individual=="GLSE21DC",]
+G21DD<-snf.full[snf.full$Individual=="GLSE21DD",]
 
-M21DA<-snf.data[snf.data$Individual=="MOCE21DA",]
-M21DB<-snf.data[snf.data$Individual=="MOCE21DB",]
-M21DC<-snf.data[snf.data$Individual=="MOCE21DC",]
-M21DD<-snf.data[snf.data$Individual=="MOCE21DD",]
+M21DA<-snf.full[snf.full$Individual=="MOCE21DA",]
+M21DB<-snf.full[snf.full$Individual=="MOCE21DB",]
+M21DC<-snf.full[snf.full$Individual=="MOCE21DC",]
+M21DD<-snf.full[snf.full$Individual=="MOCE21DD",]
 
-R21DA<-snf.data[snf.data$Individual=="ROPS21DA",]
-R21DB<-snf.data[snf.data$Individual=="ROPS21DB",]
-R21DC<-snf.data[snf.data$Individual=="ROPS21DC",]
-R21DD<-snf.data[snf.data$Individual=="ROPS21DD",]
+R21DA<-snf.full[snf.full$Individual=="ROPS21DA",]
+R21DB<-snf.full[snf.full$Individual=="ROPS21DB",]
+R21DC<-snf.full[snf.full$Individual=="ROPS21DC",]
+R21DD<-snf.full[snf.full$Individual=="ROPS21DD",]
 
-G21UA<-snf.data[snf.data$Individual=="GLSE21UA",]
-G21UB<-snf.data[snf.data$Individual=="GLSE21UB",]
-G21UC<-snf.data[snf.data$Individual=="GLSE21UC",]
+G21UA<-snf.full[snf.full$Individual=="GLSE21UA",]
+G21UB<-snf.full[snf.full$Individual=="GLSE21UB",]
+G21UC<-snf.full[snf.full$Individual=="GLSE21UC",]
 
-M21UA<-snf.data[snf.data$Individual=="MOCE21UA",]
-M21UB<-snf.data[snf.data$Individual=="MOCE21UB",]
-M21UC<-snf.data[snf.data$Individual=="MOCE21UC",]
-M21UD<-snf.data[snf.data$Individual=="MOCE21UD",]
+M21UA<-snf.full[snf.full$Individual=="MOCE21UA",]
+M21UB<-snf.full[snf.full$Individual=="MOCE21UB",]
+M21UC<-snf.full[snf.full$Individual=="MOCE21UC",]
+M21UD<-snf.full[snf.full$Individual=="MOCE21UD",]
 
-R21UA<-snf.data[snf.data$Individual=="ROPS21UA",]
-R21UB<-snf.data[snf.data$Individual=="ROPS21UB",]
-R21UC<-snf.data[snf.data$Individual=="ROPS21UC",]
+R21UA<-snf.full[snf.full$Individual=="ROPS21UA",]
+R21UB<-snf.full[snf.full$Individual=="ROPS21UB",]
+R21UC<-snf.full[snf.full$Individual=="ROPS21UC",]
 
-A31DA<-snf.data[snf.data$Individual=="ALRU31DA",]
-A31DB<-snf.data[snf.data$Individual=="ALRU31DB",]
-A31DC<-snf.data[snf.data$Individual=="ALRU31DC",]
-A31DD<-snf.data[snf.data$Individual=="ALRU31DD",]
+A31DA<-snf.full[snf.full$Individual=="ALRU31DA",]
+A31DB<-snf.full[snf.full$Individual=="ALRU31DB",]
+A31DC<-snf.full[snf.full$Individual=="ALRU31DC",]
+A31DD<-snf.full[snf.full$Individual=="ALRU31DD",]
 
-G31DA<-snf.data[snf.data$Individual=="GLSE31DA",]
-G31DB<-snf.data[snf.data$Individual=="GLSE31DB",]
-G31DC<-snf.data[snf.data$Individual=="GLSE31DC",]
-G31DD<-snf.data[snf.data$Individual=="GLSE31DD",]
+G31DA<-snf.full[snf.full$Individual=="GLSE31DA",]
+G31DB<-snf.full[snf.full$Individual=="GLSE31DB",]
+G31DC<-snf.full[snf.full$Individual=="GLSE31DC",]
+G31DD<-snf.full[snf.full$Individual=="GLSE31DD",]
 
-M31DA<-snf.data[snf.data$Individual=="MOCE31DA",]
-M31DB<-snf.data[snf.data$Individual=="MOCE31DB",]
-M31DC<-snf.data[snf.data$Individual=="MOCE31DC",]
-M31DD<-snf.data[snf.data$Individual=="MOCE31DD",]
+M31DA<-snf.full[snf.full$Individual=="MOCE31DA",]
+M31DB<-snf.full[snf.full$Individual=="MOCE31DB",]
+M31DC<-snf.full[snf.full$Individual=="MOCE31DC",]
+M31DD<-snf.full[snf.full$Individual=="MOCE31DD",]
 
-R31DA<-snf.data[snf.data$Individual=="ROPS31DA",]
-R31DB<-snf.data[snf.data$Individual=="ROPS31DB",]
-R31DC<-snf.data[snf.data$Individual=="ROPS31DC",]
-R31DD<-snf.data[snf.data$Individual=="ROPS31DD",]
+R31DA<-snf.full[snf.full$Individual=="ROPS31DA",]
+R31DB<-snf.full[snf.full$Individual=="ROPS31DB",]
+R31DC<-snf.full[snf.full$Individual=="ROPS31DC",]
+R31DD<-snf.full[snf.full$Individual=="ROPS31DD",]
 
-A31UA<-snf.data[snf.data$Individual=="ALRU31UA",]
-A31UB<-snf.data[snf.data$Individual=="ALRU31UB",]
-A31UC<-snf.data[snf.data$Individual=="ALRU31UC",]
+A31UA<-snf.full[snf.full$Individual=="ALRU31UA",]
+A31UB<-snf.full[snf.full$Individual=="ALRU31UB",]
+A31UC<-snf.full[snf.full$Individual=="ALRU31UC",]
 
-G31UA<-snf.data[snf.data$Individual=="GLSE31UA",]
-G31UB<-snf.data[snf.data$Individual=="GLSE31UB",]
-G31UC<-snf.data[snf.data$Individual=="GLSE31UC",]
-G31UD<-snf.data[snf.data$Individual=="GLSE31UD",]
-G31UE<-snf.data[snf.data$Individual=="GLSE31UE",]
-G31UF<-snf.data[snf.data$Individual=="GLSE31UF",]
+G31UA<-snf.full[snf.full$Individual=="GLSE31UA",]
+G31UB<-snf.full[snf.full$Individual=="GLSE31UB",]
+G31UC<-snf.full[snf.full$Individual=="GLSE31UC",]
+G31UD<-snf.full[snf.full$Individual=="GLSE31UD",]
+G31UE<-snf.full[snf.full$Individual=="GLSE31UE",]
+G31UF<-snf.full[snf.full$Individual=="GLSE31UF",]
 
-M31UA<-snf.data[snf.data$Individual=="MOCE31UA",]
-M31UB<-snf.data[snf.data$Individual=="MOCE31UB",]
-M31UC<-snf.data[snf.data$Individual=="MOCE31UC",]
-M31UD<-snf.data[snf.data$Individual=="MOCE31UD",]
-M31UE<-snf.data[snf.data$Individual=="MOCE31UE",]
-M31UF<-snf.data[snf.data$Individual=="MOCE31UF",]
-M31UG<-snf.data[snf.data$Individual=="MOCE31UG",]
-M31UH<-snf.data[snf.data$Individual=="MOCE31UH",]
+M31UA<-snf.full[snf.full$Individual=="MOCE31UA",]
+M31UB<-snf.full[snf.full$Individual=="MOCE31UB",]
+M31UC<-snf.full[snf.full$Individual=="MOCE31UC",]
+M31UD<-snf.full[snf.full$Individual=="MOCE31UD",]
+M31UE<-snf.full[snf.full$Individual=="MOCE31UE",]
+M31UF<-snf.full[snf.full$Individual=="MOCE31UF",]
+M31UG<-snf.full[snf.full$Individual=="MOCE31UG",]
+M31UH<-snf.full[snf.full$Individual=="MOCE31UH",]
 
-R31UA<-snf.data[snf.data$Individual=="ROPS31UA",]
-R31UB<-snf.data[snf.data$Individual=="ROPS31UB",]
-R31UC<-snf.data[snf.data$Individual=="ROPS31UC",]
-R31UD<-snf.data[snf.data$Individual=="ROPS31UD",]
-R31UE<-snf.data[snf.data$Individual=="ROPS31UE",]
-R31UF<-snf.data[snf.data$Individual=="ROPS31UF",]
+R31UA<-snf.full[snf.full$Individual=="ROPS31UA",]
+R31UB<-snf.full[snf.full$Individual=="ROPS31UB",]
+R31UC<-snf.full[snf.full$Individual=="ROPS31UC",]
+R31UD<-snf.full[snf.full$Individual=="ROPS31UD",]
+R31UE<-snf.full[snf.full$Individual=="ROPS31UE",]
+R31UF<-snf.full[snf.full$Individual=="ROPS31UF",]
 
 ### Subset CO2 data
 A21DA.co2<-co2.data[co2.data$Individual=="ALRU21DA",]
@@ -2948,6 +2994,832 @@ tL.up.rhiz.se<-sem_symRhiz
 quantile(rnorm(10000,tL.up.actin.est,tL.up.actin.se),c(0.025,0.975))
 quantile(rnorm(10000,tL.up.rhiz.est,tL.up.rhiz.se),c(0.025,0.975))
 
+
+### Testing for effects of size and maximum SNF on r and tL
+
+## r test
+
+# Down-regulation
+
+# NLL function can be used for both size and maximum SNF
+# Species x temperature interaction (with tL; r fit at treatment level); r function of size
+sigmoid.size_down_sptemp_normNLL <- function(sdNase,
+                                             adownA21,
+                                             adownG21,
+                                             adownM21,
+                                             adownR21,
+                                             adownA31,
+                                             adownG31,
+                                             adownM31,
+                                             adownR31,
+                                             bdownA21,
+                                             bdownG21,
+                                             bdownM21,
+                                             bdownR21,
+                                             bdownA31,
+                                             bdownG31,
+                                             bdownM31,
+                                             bdownR31,
+                                             tLdownA21A,tLdownA21B,tLdownA21C,tLdownA21D,
+                                             tLdownG21A,tLdownG21B,tLdownG21C,tLdownG21D,
+                                             tLdownM21A,tLdownM21B,tLdownM21C,tLdownM21D,
+                                             tLdownR21A,tLdownR21B,tLdownR21C,tLdownR21D,
+                                             tLdownA31A,tLdownA31B,tLdownA31C,tLdownA31D,
+                                             tLdownG31A,tLdownG31B,tLdownG31C,tLdownG31D,
+                                             tLdownM31A,tLdownM31B,tLdownM31C,tLdownM31D,
+                                             tLdownR31A,tLdownR31B,tLdownR31C,tLdownR31D,
+                                             K1,K2,K3,K4,K5,K6,K7,K8,
+                                             K9,K10,K11,K12,K13,K14,K15,K16,
+                                             K17,K18,K19,K20,K21,K22,K23,K24,
+                                             K25,K26,K27,K28,K29,K30,K31,K32,
+                                             Resp1,Resp2,Resp3,Resp4,Resp5,Resp6,Resp7,Resp8,
+                                             Resp9,Resp10,Resp11,Resp12,Resp13,Resp14,Resp15,Resp16,
+                                             Resp17,Resp18,Resp19,Resp20,Resp21,Resp22,Resp23,Resp24,
+                                             Resp25,Resp26,Resp27,Resp28,Resp29,Resp30,Resp31,Resp32,
+                                             t1,t2,t3,t4,t5,t6,t7,t8,
+                                             t9,t10,t11,t12,t13,t14,t15,t16,
+                                             t17,t18,t19,t20,t21,t22,t23,t24,
+                                             t25,t26,t27,t28,t29,t30,t31,t32,
+                                             Nasedat1,Nasedat2,Nasedat3,Nasedat4,Nasedat5,Nasedat6,Nasedat7,Nasedat8,
+                                             Nasedat9,Nasedat10,Nasedat11,Nasedat12,Nasedat13,Nasedat14,Nasedat15,Nasedat16,
+                                             Nasedat17,Nasedat18,Nasedat19,Nasedat20,Nasedat21,Nasedat22,Nasedat23,Nasedat24,
+                                             Nasedat25,Nasedat26,Nasedat27,Nasedat28,Nasedat29,Nasedat30,Nasedat31,Nasedat32){
+  Nasemean1 <- sigmoid.size(exp(K1),adownA21,bdownA21,exp(tLdownA21A),t1,Resp1)
+  Nasemean2 <- sigmoid.size(exp(K2),adownA21,bdownA21,exp(tLdownA21B),t2,Resp2)
+  Nasemean3 <- sigmoid.size(exp(K3),adownA21,bdownA21,exp(tLdownA21C),t3,Resp3)
+  Nasemean4 <- sigmoid.size(exp(K4),adownA21,bdownA21,exp(tLdownA21D),t4,Resp4)
+  Nasemean5 <- sigmoid.size(exp(K5),adownG21,bdownG21,exp(tLdownG21A),t5,Resp5)
+  Nasemean6 <- sigmoid.size(exp(K6),adownG21,bdownG21,exp(tLdownG21B),t6,Resp6)
+  Nasemean7 <- sigmoid.size(exp(K7),adownG21,bdownG21,exp(tLdownG21C),t7,Resp7)
+  Nasemean8 <- sigmoid.size(exp(K8),adownG21,bdownG21,exp(tLdownG21D),t8,Resp8)
+  Nasemean9 <- sigmoid.size(exp(K9),adownM21,bdownM21,exp(tLdownM21A),t9,Resp9)
+  Nasemean10 <- sigmoid.size(exp(K10),adownM21,bdownM21,exp(tLdownM21B),t10,Resp10)
+  Nasemean11 <- sigmoid.size(exp(K11),adownM21,bdownM21,exp(tLdownM21C),t11,Resp11)
+  Nasemean12 <- sigmoid.size(exp(K12),adownM21,bdownM21,exp(tLdownM21D),t12,Resp12)
+  Nasemean13 <- sigmoid.size(exp(K13),adownR21,bdownR21,exp(tLdownR21A),t13,Resp13)
+  Nasemean14 <- sigmoid.size(exp(K14),adownR21,bdownR21,exp(tLdownR21B),t14,Resp14)
+  Nasemean15 <- sigmoid.size(exp(K15),adownR21,bdownR21,exp(tLdownR21C),t15,Resp15)
+  Nasemean16 <- sigmoid.size(exp(K16),adownR21,bdownR21,exp(tLdownR21D),t16,Resp16)
+  Nasemean17 <- sigmoid.size(exp(K17),adownA31,bdownA31,exp(tLdownA31A),t17,Resp17)
+  Nasemean18 <- sigmoid.size(exp(K18),adownA31,bdownA31,exp(tLdownA31B),t18,Resp18)
+  Nasemean19 <- sigmoid.size(exp(K19),adownA31,bdownA31,exp(tLdownA31C),t19,Resp19)
+  Nasemean20 <- sigmoid.size(exp(K20),adownA31,bdownA31,exp(tLdownA31D),t20,Resp20)
+  Nasemean21 <- sigmoid.size(exp(K21),adownG31,bdownG31,exp(tLdownG31A),t21,Resp21)
+  Nasemean22 <- sigmoid.size(exp(K22),adownG31,bdownG31,exp(tLdownG31B),t22,Resp22)
+  Nasemean23 <- sigmoid.size(exp(K23),adownG31,bdownG31,exp(tLdownG31C),t23,Resp23)
+  Nasemean24 <- sigmoid.size(exp(K24),adownG31,bdownG31,exp(tLdownG31D),t24,Resp24)
+  Nasemean25 <- sigmoid.size(exp(K25),adownM31,bdownM31,exp(tLdownM31A),t25,Resp25)
+  Nasemean26 <- sigmoid.size(exp(K26),adownM31,bdownM31,exp(tLdownM31B),t26,Resp26)
+  Nasemean27 <- sigmoid.size(exp(K27),adownM31,bdownM31,exp(tLdownM31C),t27,Resp27)
+  Nasemean28 <- sigmoid.size(exp(K28),adownM31,bdownM31,exp(tLdownM31D),t28,Resp28)
+  Nasemean29 <- sigmoid.size(exp(K29),adownR31,bdownR31,exp(tLdownR31A),t29,Resp29)
+  Nasemean30 <- sigmoid.size(exp(K30),adownR31,bdownR31,exp(tLdownR31B),t30,Resp30)
+  Nasemean31 <- sigmoid.size(exp(K31),adownR31,bdownR31,exp(tLdownR31C),t31,Resp31)
+  Nasemean32 <- sigmoid.size(exp(K32),adownR31,bdownR31,exp(tLdownR31D),t32,Resp32)
+  -(sum(dnorm(Nasedat1,mean=Nasemean1,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat2,mean=Nasemean2,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat3,mean=Nasemean3,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat4,mean=Nasemean4,sd=exp(sdNase),log=TRUE),na.rm=TRUE) +
+      sum(dnorm(Nasedat5,mean=Nasemean5,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat6,mean=Nasemean6,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat7,mean=Nasemean7,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat8,mean=Nasemean8,sd=exp(sdNase),log=TRUE),na.rm=TRUE) +
+      sum(dnorm(Nasedat9,mean=Nasemean9,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat10,mean=Nasemean10,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat11,mean=Nasemean11,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat12,mean=Nasemean12,sd=exp(sdNase),log=TRUE),na.rm=TRUE) +
+      sum(dnorm(Nasedat13,mean=Nasemean13,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat14,mean=Nasemean14,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat15,mean=Nasemean15,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat16,mean=Nasemean16,sd=exp(sdNase),log=TRUE),na.rm=TRUE) +
+      sum(dnorm(Nasedat17,mean=Nasemean17,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat18,mean=Nasemean18,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat19,mean=Nasemean19,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat20,mean=Nasemean20,sd=exp(sdNase),log=TRUE),na.rm=TRUE) +
+      sum(dnorm(Nasedat21,mean=Nasemean21,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat22,mean=Nasemean22,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat23,mean=Nasemean23,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat24,mean=Nasemean24,sd=exp(sdNase),log=TRUE),na.rm=TRUE) +
+      sum(dnorm(Nasedat25,mean=Nasemean25,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat26,mean=Nasemean26,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat27,mean=Nasemean27,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat28,mean=Nasemean28,sd=exp(sdNase),log=TRUE),na.rm=TRUE) +
+      sum(dnorm(Nasedat29,mean=Nasemean29,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat30,mean=Nasemean30,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat31,mean=Nasemean31,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat32,mean=Nasemean32,sd=exp(sdNase),log=TRUE),na.rm=TRUE))
+}
+
+# Fit model for time lags function of size
+fit_sigmoid.size_down_sptemp <- mle2(sigmoid.size_down_sptemp_normNLL,start=list(sdNase=-1,
+                                                                                 K1=log(max(A21DA$SNF)),K2=log(max(A21DB$SNF)),
+                                                                                 K3=log(max(A21DC$SNF)),K4=log(max(A21DD$SNF)),
+                                                                                 K5=log(max(G21DA$SNF)),K6=log(max(G21DB$SNF)),
+                                                                                 K7=log(max(G21DC$SNF)),K8=log(max(G21DD$SNF)),
+                                                                                 K9=log(max(M21DA$SNF)),K10=log(max(M21DB$SNF)),
+                                                                                 K11=log(max(M21DC$SNF)),K12=log(max(M21DD$SNF)),
+                                                                                 K13=log(max(R21DA$SNF)),K14=log(max(R21DB$SNF)),
+                                                                                 K15=log(max(R21DC$SNF)),K16=log(max(R21DD$SNF)),
+                                                                                 K17=log(max(A31DA$SNF)),K18=log(max(A31DB$SNF)),
+                                                                                 K19=log(max(A31DC$SNF)),K20=log(max(A31DD$SNF)),
+                                                                                 K21=log(max(G31DA$SNF)),K22=log(max(G31DB$SNF)),
+                                                                                 K23=log(max(G31DC$SNF)),K24=log(max(G31DD$SNF)),
+                                                                                 K25=log(max(M31DA$SNF)),K26=log(max(M31DB$SNF)),
+                                                                                 K27=log(max(M31DC$SNF)),K28=log(max(M31DD$SNF)),
+                                                                                 K29=log(max(R31DA$SNF)),K30=log(max(R31DB$SNF)),
+                                                                                 K31=log(max(R31DC$SNF)),K32=log(max(R31DD$SNF)),
+                                                                                 adownA21=0.01,adownG21=0.01,adownM21=0.01,adownR21=0.01,
+                                                                                 adownA31=0.01,adownG31=0.01,adownM31=0.01,adownR31=0.01,
+                                                                                 bdownA21=-0.35,bdownG21=-0.35,bdownM21=-0.35,bdownR21=-0.35,
+                                                                                 bdownA31=-0.35,bdownG31=-0.35,bdownM31=-0.35,bdownR31=-0.35,
+                                                                                 tLdownA21A=log(7),tLdownA21B=log(7),tLdownA21C=log(7),tLdownA21D=log(7),
+                                                                                 tLdownG21A=log(7),tLdownG21B=log(7),tLdownG21C=log(7),tLdownG21D=log(7),
+                                                                                 tLdownM21A=log(7),tLdownM21B=log(7),tLdownM21C=log(7),tLdownM21D=log(7),
+                                                                                 tLdownR21A=log(7),tLdownR21B=log(7),tLdownR21C=log(7),tLdownR21D=log(7),
+                                                                                 tLdownA31A=log(7),tLdownA31B=log(7),tLdownA31C=log(7),tLdownA31D=log(7),
+                                                                                 tLdownG31A=log(7),tLdownG31B=log(7),tLdownG31C=log(7),tLdownG31D=log(7),
+                                                                                 tLdownM31A=log(0.2),tLdownM31B=log(7),tLdownM31C=log(7),tLdownM31D=log(7),
+                                                                                 tLdownR31A=log(7),tLdownR31B=log(7),tLdownR31C=log(7),tLdownR31D=log(7)),
+                                     data=list(t1=A21DA$Day,t2=A21DB$Day,
+                                               t3=A21DC$Day,t4=A21DD$Day,
+                                               t5=G21DA$Day,t6=G21DB$Day,
+                                               t7=G21DC$Day,t8=G21DD$Day,
+                                               t9=M21DA$Day,t10=M21DB$Day,
+                                               t11=M21DC$Day,t12=M21DD$Day,
+                                               t13=R21DA$Day,t14=R21DB$Day,
+                                               t15=R21DC$Day,t16=R21DD$Day,
+                                               t17=A31DA$Day,t18=A31DB$Day,
+                                               t19=A31DC$Day,t20=A31DD$Day,
+                                               t21=G31DA$Day,t22=G31DB$Day,
+                                               t23=G31DC$Day,t24=G31DD$Day,
+                                               t25=M31DA$Day,t26=M31DB$Day,
+                                               t27=M31DC$Day,t28=M31DD$Day,
+                                               t29=R31DA$Day,t30=R31DB$Day,
+                                               t31=R31DC$Day,t32=R31DD$Day,
+                                               Resp1=A21DA.co2$Resp.mean[1],Resp2=A21DB.co2$Resp.mean[1],
+                                               Resp3=A21DC.co2$Resp.mean[1],Resp4=A21DD.co2$Resp.mean[1],
+                                               Resp5=G21DA.co2$Resp.mean[1],Resp6=G21DB.co2$Resp.mean[1],
+                                               Resp7=G21DC.co2$Resp.mean[1],Resp8=G21DD.co2$Resp.mean[1],
+                                               Resp9=M21DA.co2$Resp.mean[1],Resp10=M21DB.co2$Resp.mean[1],
+                                               Resp11=M21DC.co2$Resp.mean[1],Resp12=M21DD.co2$Resp.mean[1],
+                                               Resp13=R21DA.co2$Resp.mean[1],Resp14=R21DB.co2$Resp.mean[1],
+                                               Resp15=R21DC.co2$Resp.mean[1],Resp16=R21DD.co2$Resp.mean[1],
+                                               Resp17=A31DA.co2$Resp.mean[1],Resp18=A31DB.co2$Resp.mean[1],
+                                               Resp19=A31DC.co2$Resp.mean[1],Resp20=A31DD.co2$Resp.mean[1],
+                                               Resp21=G31DA.co2$Resp.mean[1],Resp22=G31DB.co2$Resp.mean[1],
+                                               Resp23=G31DC.co2$Resp.mean[1],Resp24=G31DD.co2$Resp.mean[1],
+                                               Resp25=M31DA.co2$Resp.mean[1],Resp26=M31DB.co2$Resp.mean[1],
+                                               Resp27=M31DC.co2$Resp.mean[1],Resp28=M31DD.co2$Resp.mean[1],
+                                               Resp29=R31DA.co2$Resp.mean[1],Resp30=R31DB.co2$Resp.mean[1],
+                                               Resp31=R31DC.co2$Resp.mean[1],Resp32=R31DD.co2$Resp.mean[1],
+                                               Nasedat1=A21DA$SNF,Nasedat2=A21DB$SNF,
+                                               Nasedat3=A21DC$SNF,Nasedat4=A21DD$SNF,
+                                               Nasedat5=G21DA$SNF,Nasedat6=G21DB$SNF,
+                                               Nasedat7=G21DC$SNF,Nasedat8=G21DD$SNF,
+                                               Nasedat9=M21DA$SNF,Nasedat10=M21DB$SNF,
+                                               Nasedat11=M21DC$SNF,Nasedat12=M21DD$SNF,
+                                               Nasedat13=R21DA$SNF,Nasedat14=R21DB$SNF,
+                                               Nasedat15=R21DC$SNF,Nasedat16=R21DD$SNF,
+                                               Nasedat17=A31DA$SNF,Nasedat18=A31DB$SNF,
+                                               Nasedat19=A31DC$SNF,Nasedat20=A31DD$SNF,
+                                               Nasedat21=G31DA$SNF,Nasedat22=G31DB$SNF,
+                                               Nasedat23=G31DC$SNF,Nasedat24=G31DD$SNF,
+                                               Nasedat25=M31DA$SNF,Nasedat26=M31DB$SNF,
+                                               Nasedat27=M31DC$SNF,Nasedat28=M31DD$SNF,
+                                               Nasedat29=R31DA$SNF,Nasedat30=R31DB$SNF,
+                                               Nasedat31=R31DC$SNF,Nasedat32=R31DD$SNF),
+                                     control=list(maxit=20000))
+summary(fit_sigmoid.size_down_sptemp)
+#Many NA values for SE
+
+# Run for time lags function of maximum SNF
+fit_sigmoid.d0_rate_down_sptemp <- mle2(sigmoid.size_down_sptemp_normNLL,start=list(sdNase=-1,
+                                                                                    K1=log(max(A21DA$SNF)),K2=log(max(A21DB$SNF)),
+                                                                                    K3=log(max(A21DC$SNF)),K4=log(max(A21DD$SNF)),
+                                                                                    K5=log(max(G21DA$SNF)),K6=log(max(G21DB$SNF)),
+                                                                                    K7=log(max(G21DC$SNF)),K8=log(max(G21DD$SNF)),
+                                                                                    K9=log(max(M21DA$SNF)),K10=log(max(M21DB$SNF)),
+                                                                                    K11=log(max(M21DC$SNF)),K12=log(max(M21DD$SNF)),
+                                                                                    K13=log(max(R21DA$SNF)),K14=log(max(R21DB$SNF)),
+                                                                                    K15=log(max(R21DC$SNF)),K16=log(max(R21DD$SNF)),
+                                                                                    K17=log(max(A31DA$SNF)),K18=log(max(A31DB$SNF)),
+                                                                                    K19=log(max(A31DC$SNF)),K20=log(max(A31DD$SNF)),
+                                                                                    K21=log(max(G31DA$SNF)),K22=log(max(G31DB$SNF)),
+                                                                                    K23=log(max(G31DC$SNF)),K24=log(max(G31DD$SNF)),
+                                                                                    K25=log(max(M31DA$SNF)),K26=log(max(M31DB$SNF)),
+                                                                                    K27=log(max(M31DC$SNF)),K28=log(max(M31DD$SNF)),
+                                                                                    K29=log(max(R31DA$SNF)),K30=log(max(R31DB$SNF)),
+                                                                                    K31=log(max(R31DC$SNF)),K32=log(max(R31DD$SNF)),
+                                                                                    adownA21=67,adownG21=67,adownM21=67,adownR21=67,
+                                                                                    adownA31=67,adownG31=67,adownM31=67,adownR31=67,
+                                                                                    bdownA21=-0.2,bdownG21=-0.2,bdownM21=-0.2,bdownR21=-0.2,
+                                                                                    bdownA31=-0.2,bdownG31=-0.2,bdownM31=-0.2,bdownR31=-0.2,
+                                                                                    tLdownA21A=log(7),tLdownA21B=log(7),tLdownA21C=log(7),tLdownA21D=log(7),
+                                                                                    tLdownG21A=log(7),tLdownG21B=log(7),tLdownG21C=log(7),tLdownG21D=log(7),
+                                                                                    tLdownM21A=log(7),tLdownM21B=log(7),tLdownM21C=log(7),tLdownM21D=log(7),
+                                                                                    tLdownR21A=log(7),tLdownR21B=log(7),tLdownR21C=log(7),tLdownR21D=log(7),
+                                                                                    tLdownA31A=log(7),tLdownA31B=log(7),tLdownA31C=log(7),tLdownA31D=log(7),
+                                                                                    tLdownG31A=log(7),tLdownG31B=log(7),tLdownG31C=log(7),tLdownG31D=log(7),
+                                                                                    tLdownM31A=log(0.2),tLdownM31B=log(7),tLdownM31C=log(7),tLdownM31D=log(7),
+                                                                                    tLdownR31A=log(7),tLdownR31B=log(7),tLdownR31C=log(7),tLdownR31D=log(7)),
+                                        data=list(t1=A21DA$Day,t2=A21DB$Day,
+                                                  t3=A21DC$Day,t4=A21DD$Day,
+                                                  t5=G21DA$Day,t6=G21DB$Day,
+                                                  t7=G21DC$Day,t8=G21DD$Day,
+                                                  t9=M21DA$Day,t10=M21DB$Day,
+                                                  t11=M21DC$Day,t12=M21DD$Day,
+                                                  t13=R21DA$Day,t14=R21DB$Day,
+                                                  t15=R21DC$Day,t16=R21DD$Day,
+                                                  t17=A31DA$Day,t18=A31DB$Day,
+                                                  t19=A31DC$Day,t20=A31DD$Day,
+                                                  t21=G31DA$Day,t22=G31DB$Day,
+                                                  t23=G31DC$Day,t24=G31DD$Day,
+                                                  t25=M31DA$Day,t26=M31DB$Day,
+                                                  t27=M31DC$Day,t28=M31DD$Day,
+                                                  t29=R31DA$Day,t30=R31DB$Day,
+                                                  t31=R31DC$Day,t32=R31DD$Day,
+                                                  Resp1=A21DA$SNF.N2[1],Resp2=A21DB$SNF.N2[1],
+                                                  Resp3=A21DC$SNF.N2[1],Resp4=A21DD$SNF.N2[1],
+                                                  Resp5=G21DA$SNF.N2[1],Resp6=G21DB$SNF.N2[1],
+                                                  Resp7=G21DC$SNF.N2[1],Resp8=G21DD$SNF.N2[1],
+                                                  Resp9=M21DA$SNF.N2[1],Resp10=M21DB$SNF.N2[1],
+                                                  Resp11=M21DC$SNF.N2[1],Resp12=M21DD$SNF.N2[1],
+                                                  Resp13=R21DA$SNF.N2[1],Resp14=R21DB$SNF.N2[1],
+                                                  Resp15=R21DC$SNF.N2[1],Resp16=R21DD$SNF.N2[1],
+                                                  Resp17=A31DA$SNF.N2[1],Resp18=A31DB$SNF.N2[1],
+                                                  Resp19=A31DC$SNF.N2[1],Resp20=A31DD$SNF.N2[1],
+                                                  Resp21=G31DA$SNF.N2[1],Resp22=G31DB$SNF.N2[1],
+                                                  Resp23=G31DC$SNF.N2[1],Resp24=G31DD$SNF.N2[1],
+                                                  Resp25=M31DA$SNF.N2[1],Resp26=M31DB$SNF.N2[1],
+                                                  Resp27=M31DC$SNF.N2[1],Resp28=M31DD$SNF.N2[1],
+                                                  Resp29=R31DA$SNF.N2[1],Resp30=R31DB$SNF.N2[1],
+                                                  Resp31=R31DC$SNF.N2[1],Resp32=R31DD$SNF.N2[1],
+                                                  Nasedat1=A21DA$SNF.N2,Nasedat2=A21DB$SNF.N2,
+                                                  Nasedat3=A21DC$SNF.N2,Nasedat4=A21DD$SNF.N2,
+                                                  Nasedat5=G21DA$SNF,Nasedat6=G21DB$SNF,
+                                                  Nasedat7=G21DC$SNF,Nasedat8=G21DD$SNF,
+                                                  Nasedat9=M21DA$SNF,Nasedat10=M21DB$SNF,
+                                                  Nasedat11=M21DC$SNF,Nasedat12=M21DD$SNF,
+                                                  Nasedat13=R21DA$SNF,Nasedat14=R21DB$SNF,
+                                                  Nasedat15=R21DC$SNF,Nasedat16=R21DD$SNF,
+                                                  Nasedat17=A31DA$SNF,Nasedat18=A31DB$SNF,
+                                                  Nasedat19=A31DC$SNF,Nasedat20=A31DD$SNF,
+                                                  Nasedat21=G31DA$SNF,Nasedat22=G31DB$SNF,
+                                                  Nasedat23=G31DC$SNF,Nasedat24=G31DD$SNF,
+                                                  Nasedat25=M31DA$SNF,Nasedat26=M31DB$SNF,
+                                                  Nasedat27=M31DC$SNF,Nasedat28=M31DD$SNF,
+                                                  Nasedat29=R31DA$SNF,Nasedat30=R31DB$SNF,
+                                                  Nasedat31=R31DC$SNF,Nasedat32=R31DD$SNF),
+                                        control=list(maxit=20000))
+summary(fit_sigmoid.d0_rate_down_sptemp)
+#Many NA values for SE
+
+# Up-regulation
+
+# NLL function can be used for both size and maximum SNF
+# Species x temperature interaction (one r for each treatment)
+sigmoid.size_up_sptemp_normNLL <- function(sdNase,aupG21,bupG21,tLupG21A,tLupG21B,tLupG21C,
+                                           aupM21,bupM21,tLupM21A,tLupM21B,tLupM21C,tLupM21D,
+                                           aupR21,bupR21,tLupR21A,tLupR21B,tLupR21C,
+                                           aupA31,bupA31,tLupA31A,tLupA31B,tLupA31C,
+                                           aupG31,bupG31,tLupG31A,tLupG31B,tLupG31C,tLupG31D,tLupG31E,tLupG31F,
+                                           aupM31,bupM31,tLupM31A,tLupM31B,tLupM31C,tLupM31D,tLupM31E,tLupM31F,tLupM31G,tLupM31H,
+                                           aupR31,bupR31,tLupR31A,tLupR31B,tLupR31C,tLupR31D,tLupR31E,tLupR31F,
+                                           K1,K2,K3,K4,K5,K6,K7,K8,
+                                           K9,K10,K11,K12,K13,K14,K15,K16,
+                                           K17,K18,K19,K20,K21,K22,K23,K24,
+                                           K25,K26,K27,K28,K29,K30,K31,K32,K33,
+                                           Resp1,Resp2,Resp3,Resp4,Resp5,Resp6,Resp7,Resp8,
+                                           Resp9,Resp10,Resp11,Resp12,Resp13,Resp14,Resp15,Resp16,
+                                           Resp17,Resp18,Resp19,Resp20,Resp21,Resp22,Resp23,Resp24,
+                                           Resp25,Resp26,Resp27,Resp28,Resp29,Resp30,Resp31,Resp32,Resp33,
+                                           t1,t2,t3,t4,t5,t6,t7,t8,
+                                           t9,t10,t11,t12,t13,t14,t15,t16,
+                                           t17,t18,t19,t20,t21,t22,t23,t24,
+                                           t25,t26,t27,t28,t29,t30,t31,t32,t33,
+                                           Nasedat1,Nasedat2,Nasedat3,Nasedat4,Nasedat5,Nasedat6,Nasedat7,Nasedat8,
+                                           Nasedat9,Nasedat10,Nasedat11,Nasedat12,Nasedat13,Nasedat14,Nasedat15,Nasedat16,
+                                           Nadedat17,Nadedat18,Nadedat19,Nadedat20,Nadedat21,Nadedat22,Nadedat23,Nadedat24,
+                                           Nadedat25,Nadedat26,Nadedat27,Nadedat28,Nadedat29,Nadedat30,Nadedat31,Nadedat32,Nadedat33){
+  Nasemean1 <- sigmoid.size(exp(K1),aupG21,bupG21,exp(tLupG21A),t1,Resp1)
+  Nasemean2 <- sigmoid.size(exp(K2),aupG21,bupG21,exp(tLupG21B),t2,Resp2)
+  Nasemean3 <- sigmoid.size(exp(K3),aupG21,bupG21,exp(tLupG21C),t3,Resp3)
+  Nasemean4 <- sigmoid.size(exp(K4),aupM21,bupM21,exp(tLupM21A),t4,Resp4)
+  Nasemean5 <- sigmoid.size(exp(K5),aupM21,bupM21,exp(tLupM21B),t5,Resp5)
+  Nasemean6 <- sigmoid.size(exp(K6),aupM21,bupM21,exp(tLupM21C),t6,Resp6)
+  Nasemean7 <- sigmoid.size(exp(K7),aupM21,bupM21,exp(tLupM21D),t7,Resp7)
+  Nasemean8 <- sigmoid.size(exp(K8),aupR21,bupR21,exp(tLupR21A),t8,Resp8)
+  Nasemean9 <- sigmoid.size(exp(K9),aupR21,bupR21,exp(tLupR21B),t9,Resp9)
+  Nasemean10 <- sigmoid.size(exp(K10),aupR21,bupR21,exp(tLupR21C),t10,Resp10)
+  Nasemean11 <- sigmoid.size(exp(K11),aupA31,bupA31,exp(tLupA31A),t11,Resp11)
+  Nasemean12 <- sigmoid.size(exp(K12),aupA31,bupA31,exp(tLupA31B),t12,Resp12)
+  Nasemean13 <- sigmoid.size(exp(K13),aupA31,bupA31,exp(tLupA31C),t13,Resp13)
+  Nasemean14 <- sigmoid.size(exp(K14),aupG31,bupG31,exp(tLupG31A),t14,Resp14)
+  Nasemean15 <- sigmoid.size(exp(K15),aupG31,bupG31,exp(tLupG31B),t15,Resp15)
+  Nasemean16 <- sigmoid.size(exp(K16),aupG31,bupG31,exp(tLupG31C),t16,Resp16)
+  Nasemean17 <- sigmoid.size(exp(K17),aupG31,bupG31,exp(tLupG31D),t17,Resp17)
+  Nasemean18 <- sigmoid.size(exp(K18),aupG31,bupG31,exp(tLupG31E),t18,Resp18)
+  Nasemean19 <- sigmoid.size(exp(K19),aupG31,bupG31,exp(tLupG31F),t19,Resp19)
+  Nasemean20 <- sigmoid.size(exp(K20),aupM31,bupM31,exp(tLupM31A),t20,Resp20)
+  Nasemean21 <- sigmoid.size(exp(K21),aupM31,bupM31,exp(tLupM31B),t21,Resp21)
+  Nasemean22 <- sigmoid.size(exp(K22),aupM31,bupM31,exp(tLupM31C),t22,Resp22)
+  Nasemean23 <- sigmoid.size(exp(K23),aupM31,bupM31,exp(tLupM31D),t23,Resp23)
+  Nasemean24 <- sigmoid.size(exp(K24),aupM31,bupM31,exp(tLupM31E),t24,Resp24)
+  Nasemean25 <- sigmoid.size(exp(K25),aupM31,bupM31,exp(tLupM31F),t25,Resp25)
+  Nasemean26 <- sigmoid.size(exp(K26),aupM31,bupM31,exp(tLupM31G),t26,Resp26)
+  Nasemean27 <- sigmoid.size(exp(K27),aupM31,bupM31,exp(tLupM31H),t27,Resp27)
+  Nasemean28 <- sigmoid.size(exp(K28),aupR31,bupR31,exp(tLupR31A),t28,Resp28)
+  Nasemean29 <- sigmoid.size(exp(K29),aupR31,bupR31,exp(tLupR31B),t29,Resp29)
+  Nasemean30 <- sigmoid.size(exp(K30),aupR31,bupR31,exp(tLupR31C),t30,Resp30)
+  Nasemean31 <- sigmoid.size(exp(K31),aupR31,bupR31,exp(tLupR31D),t31,Resp31)
+  Nasemean32 <- sigmoid.size(exp(K32),aupR31,bupR31,exp(tLupR31E),t32,Resp32)
+  Nasemean33 <- sigmoid.size(exp(K33),aupR31,bupR31,exp(tLupR31F),t33,Resp33)
+  -(sum(dnorm(Nasedat1,mean=Nasemean1,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat2,mean=Nasemean2,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat3,mean=Nasemean3,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat4,mean=Nasemean4,sd=exp(sdNase),log=TRUE),na.rm=TRUE) +
+      sum(dnorm(Nasedat5,mean=Nasemean5,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat6,mean=Nasemean6,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat7,mean=Nasemean7,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat8,mean=Nasemean8,sd=exp(sdNase),log=TRUE),na.rm=TRUE) +
+      sum(dnorm(Nasedat9,mean=Nasemean9,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat10,mean=Nasemean10,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat11,mean=Nasemean11,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat12,mean=Nasemean12,sd=exp(sdNase),log=TRUE),na.rm=TRUE) +
+      sum(dnorm(Nasedat13,mean=Nasemean13,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat14,mean=Nasemean14,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat15,mean=Nasemean15,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat16,mean=Nasemean16,sd=exp(sdNase),log=TRUE),na.rm=TRUE) +
+      sum(dnorm(Nasedat17,mean=Nasemean17,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat18,mean=Nasemean18,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat19,mean=Nasemean19,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat20,mean=Nasemean20,sd=exp(sdNase),log=TRUE),na.rm=TRUE) +
+      sum(dnorm(Nasedat21,mean=Nasemean21,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat22,mean=Nasemean22,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat23,mean=Nasemean23,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat24,mean=Nasemean24,sd=exp(sdNase),log=TRUE),na.rm=TRUE) +
+      sum(dnorm(Nasedat25,mean=Nasemean25,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat26,mean=Nasemean26,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat27,mean=Nasemean27,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat28,mean=Nasemean28,sd=exp(sdNase),log=TRUE),na.rm=TRUE) +
+      sum(dnorm(Nasedat29,mean=Nasemean29,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat30,mean=Nasemean30,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat31,mean=Nasemean31,sd=exp(sdNase),log=TRUE),na.rm=TRUE) + 
+      sum(dnorm(Nasedat32,mean=Nasemean32,sd=exp(sdNase),log=TRUE),na.rm=TRUE) +
+      sum(dnorm(Nasedat33,mean=Nasemean33,sd=exp(sdNase),log=TRUE),na.rm=TRUE))
+}
+
+# Time lags function of size
+fit_sigmoid.size_up_sptemp <- mle2(sigmoid.size_up_sptemp_normNLL,start=list(sdNase=-1,
+                                                                             K1=log(max(G21UA$SNF)),K2=log(max(G21UB$SNF)),
+                                                                             K3=log(max(G21UC$SNF)),K4=log(max(M21UA$SNF)),
+                                                                             K5=log(max(M21UB$SNF)),K6=log(max(M21UC$SNF)),
+                                                                             K7=log(max(M21UD$SNF)),K8=log(max(R21UA$SNF)),
+                                                                             K9=log(max(R21UB$SNF)),K10=log(max(R21UC$SNF)),
+                                                                             K11=log(max(A31UA$SNF)),K12=log(max(A31UB$SNF)),
+                                                                             K13=log(max(A31UC$SNF)),K14=log(max(G31UA$SNF)),
+                                                                             K15=log(max(G31UB$SNF)),K16=log(max(G31UC$SNF)),
+                                                                             K17=log(max(G31UD$SNF)),K18=log(max(G31UE$SNF)),
+                                                                             K19=log(max(G31UF$SNF)),K20=log(max(M31UA$SNF)),
+                                                                             K21=log(max(M31UB$SNF)),K22=log(max(M31UC$SNF)),
+                                                                             K23=log(max(M31UD$SNF)),K24=log(max(M31UE$SNF)),
+                                                                             K25=log(max(M31UF$SNF)),K26=log(max(M31UG$SNF)),
+                                                                             K27=log(max(M31UH$SNF)),K28=log(max(R31UA$SNF)),
+                                                                             K29=log(max(R31UB$SNF)),K30=log(max(R31UC$SNF)),
+                                                                             K31=log(max(R31UD$SNF)),K32=log(max(R31UE$SNF)),
+                                                                             K33=log(max(R31UF$SNF)),bupG21=0.2,bupM21=0.2,bupR21=0.2,
+                                                                             bupA31=0.2,bupG31=0.2,bupM31=0.2,bupR31=0.2,
+                                                                             aupG21=log(1),tLupG21A=log(70),tLupG21B=log(110),tLupG21C=log(100),
+                                                                             aupM21=log(1),tLupM21A=log(150),tLupM21B=log(100),tLupM21C=log(140),tLupM21D=log(180),
+                                                                             aupR21=log(1),tLupR21A=log(60),tLupR21B=log(30),tLupR21C=log(40),
+                                                                             aupA31=log(1),tLupA31A=log(160),tLupA31B=log(110),tLupA31C=log(110),
+                                                                             aupG31=log(1),tLupG31A=log(100),tLupG31B=log(70),tLupG31C=log(110),tLupG31D=log(40),tLupG31E=log(70),tLupG31F=log(110),
+                                                                             aupM31=log(1),tLupM31A=log(110),tLupM31B=log(120),tLupM31C=log(150),tLupM31D=log(100),tLupM31E=log(130),tLupM31F=log(130),tLupM31G=log(130),tLupM31H=log(130),
+                                                                             aupR31=log(1),tLupR31A=log(70),tLupR31B=log(100),tLupR31C=log(120),tLupR31D=log(30),tLupR31E=log(120),tLupR31F=log(70)),
+                                   data=list(t1=G21UA$Day,t2=G21UB$Day,
+                                             t3=G21UC$Day,t4=M21UA$Day,
+                                             t5=M21UB$Day,t6=M21UC$Day,
+                                             t7=M21UD$Day,t8=R21UA$Day,
+                                             t9=R21UB$Day,t10=R21UC$Day,
+                                             t11=A31UA$Day,t12=A31UB$Day,
+                                             t13=A31UC$Day,t14=G31UA$Day,
+                                             t15=G31UB$Day,t16=G31UC$Day,
+                                             t17=G31UD$Day,t18=G31UE$Day,
+                                             t19=G31UF$Day,t20=M31UA$Day,
+                                             t21=M31UB$Day,t22=M31UC$Day,
+                                             t23=M31UD$Day,t24=M31UE$Day,
+                                             t25=M31UF$Day,t26=M31UG$Day,
+                                             t27=M31UH$Day,t28=R31UA$Day,
+                                             t29=R31UB$Day,t30=R31UC$Day,
+                                             t31=R31UD$Day,t32=R31UE$Day,
+                                             t33=R31UF$Day,
+                                             Resp1=G21UA.co2$Resp.mean[1],Resp2=G21UB.co2$Resp.mean[1],
+                                             Resp3=G21UC.co2$Resp.mean[1],Resp4=M21UA.co2$Resp.mean[1],
+                                             Resp5=M21UB.co2$Resp.mean[1],Resp6=M21UC.co2$Resp.mean[1],
+                                             Resp7=M21UD.co2$Resp.mean[1],Resp8=R21UA.co2$Resp.mean[1],
+                                             Resp9=R21UB.co2$Resp.mean[1],Resp10=R21UC.co2$Resp.mean[1],
+                                             Resp11=A31UA.co2$Resp.mean[1],Resp12=A31UB.co2$Resp.mean[1],
+                                             Resp13=A31UC.co2$Resp.mean[1],Resp14=G31UA.co2$Resp.mean[1],
+                                             Resp15=G31UB.co2$Resp.mean[1],Resp16=G31UC.co2$Resp.mean[1],
+                                             Resp17=G31UD.co2$Resp.mean[1],Resp18=G31UE.co2$Resp.mean[1],
+                                             Resp19=G31UF.co2$Resp.mean[1],Resp20=M31UA.co2$Resp.mean[1],
+                                             Resp21=M31UB.co2$Resp.mean[1],Resp22=M31UC.co2$Resp.mean[1],
+                                             Resp23=M31UD.co2$Resp.mean[1],Resp24=M31UE.co2$Resp.mean[1],
+                                             Resp25=M31UF.co2$Resp.mean[1],Resp26=M31UG.co2$Resp.mean[1],
+                                             Resp27=M31UH.co2$Resp.mean[1],Resp28=R31UA.co2$Resp.mean[1],
+                                             Resp29=R31UB.co2$Resp.mean[1],Resp30=R31UC.co2$Resp.mean[1],
+                                             Resp31=R31UD.co2$Resp.mean[1],Resp32=R31UE.co2$Resp.mean[1],
+                                             Resp33=R31UF.co2$Resp.mean[1],
+                                             Nasedat1=G21UA$SNF,Nasedat2=G21UB$SNF,
+                                             Nasedat3=G21UC$SNF,Nasedat4=M21UA$SNF,
+                                             Nasedat5=M21UB$SNF,Nasedat6=M21UC$SNF,
+                                             Nasedat7=M21UD$SNF,Nasedat8=R21UA$SNF,
+                                             Nasedat9=R21UB$SNF,Nasedat10=R21UC$SNF,
+                                             Nasedat11=A31UA$SNF,Nasedat12=A31UB$SNF,
+                                             Nasedat13=A31UC$SNF,Nasedat14=G31UA$SNF,
+                                             Nasedat15=G31UB$SNF,Nasedat16=G31UC$SNF,
+                                             Nasedat17=G31UD$SNF,Nasedat18=G31UE$SNF,
+                                             Nasedat19=G31UF$SNF,Nasedat20=M31UA$SNF,
+                                             Nasedat21=M31UB$SNF,Nasedat22=M31UC$SNF,
+                                             Nasedat23=M31UD$SNF,Nasedat24=M31UE$SNF,
+                                             Nasedat25=M31UF$SNF,Nasedat26=M31UG$SNF,
+                                             Nasedat27=M31UH$SNF,Nasedat28=R31UA$SNF,
+                                             Nasedat29=R31UB$SNF,Nasedat30=R31UC$SNF,
+                                             Nasedat31=R31UD$SNF,Nasedat32=R31UE$SNF,
+                                             Nasedat33=R31UF$SNF),
+                                   control=list(maxit=20000))
+summary(fit_sigmoid.size_up_sptemp)
+#Many NA values for SE
+
+# Time lags function of maximum SNF
+fit_sigmoid.rate_up_sptemp <- mle2(sigmoid.size_up_sptemp_normNLL,start=list(sdNase=-1,
+                                                                             K1=log(max(G21UA$SNF)),K2=log(max(G21UB$SNF)),
+                                                                             K3=log(max(G21UC$SNF)),K4=log(max(M21UA$SNF)),
+                                                                             K5=log(max(M21UB$SNF)),K6=log(max(M21UC$SNF)),
+                                                                             K7=log(max(M21UD$SNF)),K8=log(max(R21UA$SNF)),
+                                                                             K9=log(max(R21UB$SNF)),K10=log(max(R21UC$SNF)),
+                                                                             K11=log(max(A31UA$SNF)),K12=log(max(A31UB$SNF)),
+                                                                             K13=log(max(A31UC$SNF)),K14=log(max(G31UA$SNF)),
+                                                                             K15=log(max(G31UB$SNF)),K16=log(max(G31UC$SNF)),
+                                                                             K17=log(max(G31UD$SNF)),K18=log(max(G31UE$SNF)),
+                                                                             K19=log(max(G31UF$SNF)),K20=log(max(M31UA$SNF)),
+                                                                             K21=log(max(M31UB$SNF)),K22=log(max(M31UC$SNF)),
+                                                                             K23=log(max(M31UD$SNF)),K24=log(max(M31UE$SNF)),
+                                                                             K25=log(max(M31UF$SNF)),K26=log(max(M31UG$SNF)),
+                                                                             K27=log(max(M31UH$SNF)),K28=log(max(R31UA$SNF)),
+                                                                             K29=log(max(R31UB$SNF)),K30=log(max(R31UC$SNF)),
+                                                                             K31=log(max(R31UD$SNF)),K32=log(max(R31UE$SNF)),
+                                                                             K33=log(max(R31UF$SNF)),bupG21=0.2,bupM21=0.2,bupR21=0.2,
+                                                                             bupA31=0.2,bupG31=0.2,bupM31=0.2,bupR31=0.2,
+                                                                             aupG21=log(1),tLupG21A=log(70),tLupG21B=log(110),tLupG21C=log(100),
+                                                                             aupM21=log(1),tLupM21A=log(150),tLupM21B=log(100),tLupM21C=log(140),tLupM21D=log(180),
+                                                                             aupR21=log(1),tLupR21A=log(60),tLupR21B=log(30),tLupR21C=log(40),
+                                                                             aupA31=log(1),tLupA31A=log(160),tLupA31B=log(110),tLupA31C=log(110),
+                                                                             aupG31=log(1),tLupG31A=log(100),tLupG31B=log(70),tLupG31C=log(110),tLupG31D=log(40),tLupG31E=log(70),tLupG31F=log(110),
+                                                                             aupM31=log(1),tLupM31A=log(110),tLupM31B=log(120),tLupM31C=log(150),tLupM31D=log(100),tLupM31E=log(130),tLupM31F=log(130),tLupM31G=log(130),tLupM31H=log(130),
+                                                                             aupR31=log(1),tLupR31A=log(70),tLupR31B=log(100),tLupR31C=log(120),tLupR31D=log(30),tLupR31E=log(120),tLupR31F=log(70)),
+                                   data=list(t1=G21UA$Day,t2=G21UB$Day,
+                                             t3=G21UC$Day,t4=M21UA$Day,
+                                             t5=M21UB$Day,t6=M21UC$Day,
+                                             t7=M21UD$Day,t8=R21UA$Day,
+                                             t9=R21UB$Day,t10=R21UC$Day,
+                                             t11=A31UA$Day,t12=A31UB$Day,
+                                             t13=A31UC$Day,t14=G31UA$Day,
+                                             t15=G31UB$Day,t16=G31UC$Day,
+                                             t17=G31UD$Day,t18=G31UE$Day,
+                                             t19=G31UF$Day,t20=M31UA$Day,
+                                             t21=M31UB$Day,t22=M31UC$Day,
+                                             t23=M31UD$Day,t24=M31UE$Day,
+                                             t25=M31UF$Day,t26=M31UG$Day,
+                                             t27=M31UH$Day,t28=R31UA$Day,
+                                             t29=R31UB$Day,t30=R31UC$Day,
+                                             t31=R31UD$Day,t32=R31UE$Day,
+                                             t33=R31UF$Day,
+                                             Resp1=max(G21UA$SNF.N2),Resp2=max(G21UB$SNF.N2),
+                                             Resp3=max(G21UC$SNF.N2),Resp4=max(M21UA$SNF.N2),
+                                             Resp5=max(M21UB$SNF.N2),Resp6=max(M21UC$SNF.N2),
+                                             Resp7=max(M21UD$SNF.N2),Resp8=max(R21UA$SNF.N2),
+                                             Resp9=max(R21UB$SNF.N2),Resp10=max(R21UC$SNF.N2),
+                                             Resp11=max(A31UA$SNF.N2),Resp12=max(A31UB$SNF.N2),
+                                             Resp13=max(A31UC$SNF.N2),Resp14=max(G31UA$SNF.N2),
+                                             Resp15=max(G31UB$SNF.N2),Resp16=max(G31UC$SNF.N2),
+                                             Resp17=max(G31UD$SNF.N2),Resp18=max(G31UE$SNF.N2),
+                                             Resp19=max(G31UF$SNF.N2),Resp20=max(M31UA$SNF.N2),
+                                             Resp21=max(M31UB$SNF.N2),Resp22=max(M31UC$SNF.N2),
+                                             Resp23=max(M31UD$SNF.N2),Resp24=max(M31UE$SNF.N2),
+                                             Resp25=max(M31UF$SNF.N2),Resp26=max(M31UG$SNF.N2),
+                                             Resp27=max(M31UH$SNF.N2),Resp28=max(R31UA$SNF.N2),
+                                             Resp29=max(R31UB$SNF.N2),Resp30=max(R31UC$SNF.N2),
+                                             Resp31=max(R31UD$SNF.N2),Resp32=max(R31UE$SNF.N2),
+                                             Resp33=max(R31UF$SNF.N2),
+                                             Nasedat1=G21UA$SNF,Nasedat2=G21UB$SNF,
+                                             Nasedat3=G21UC$SNF,Nasedat4=M21UA$SNF,
+                                             Nasedat5=M21UB$SNF,Nasedat6=M21UC$SNF,
+                                             Nasedat7=M21UD$SNF,Nasedat8=R21UA$SNF,
+                                             Nasedat9=R21UB$SNF,Nasedat10=R21UC$SNF,
+                                             Nasedat11=A31UA$SNF,Nasedat12=A31UB$SNF,
+                                             Nasedat13=A31UC$SNF,Nasedat14=G31UA$SNF,
+                                             Nasedat15=G31UB$SNF,Nasedat16=G31UC$SNF,
+                                             Nasedat17=G31UD$SNF,Nasedat18=G31UE$SNF,
+                                             Nasedat19=G31UF$SNF,Nasedat20=M31UA$SNF,
+                                             Nasedat21=M31UB$SNF,Nasedat22=M31UC$SNF,
+                                             Nasedat23=M31UD$SNF,Nasedat24=M31UE$SNF,
+                                             Nasedat25=M31UF$SNF,Nasedat26=M31UG$SNF,
+                                             Nasedat27=M31UH$SNF,Nasedat28=R31UA$SNF,
+                                             Nasedat29=R31UB$SNF,Nasedat30=R31UC$SNF,
+                                             Nasedat31=R31UD$SNF,Nasedat32=R31UE$SNF,
+                                             Nasedat33=R31UF$SNF),
+                                   control=list(maxit=20000))
+summary(fit_sigmoid.rate_up_sptemp)
+# Many NA values for SE
+
+## tL test
+
+# Down-regulation
+Resp.down <- c(A21DA.co2$Resp.mean[1],A21DB.co2$Resp.mean[1],
+               A21DC.co2$Resp.mean[1],A21DD.co2$Resp.mean[1],
+               G21DA.co2$Resp.mean[1],G21DB.co2$Resp.mean[1],
+               G21DC.co2$Resp.mean[1],G21DD.co2$Resp.mean[1],
+               M21DA.co2$Resp.mean[1],M21DB.co2$Resp.mean[1],
+               M21DC.co2$Resp.mean[1],M21DD.co2$Resp.mean[1],
+               R21DA.co2$Resp.mean[1],R21DB.co2$Resp.mean[1],
+               R21DC.co2$Resp.mean[1],R21DD.co2$Resp.mean[1],
+               A31DA.co2$Resp.mean[1],A31DB.co2$Resp.mean[1],
+               A31DC.co2$Resp.mean[1],A31DD.co2$Resp.mean[1],
+               G31DA.co2$Resp.mean[1],G31DB.co2$Resp.mean[1],
+               G31DC.co2$Resp.mean[1],G31DD.co2$Resp.mean[1],
+               M31DA.co2$Resp.mean[1],M31DB.co2$Resp.mean[1],
+               M31DC.co2$Resp.mean[1],M31DD.co2$Resp.mean[1],
+               R31DA.co2$Resp.mean[1],R31DB.co2$Resp.mean[1],
+               R31DC.co2$Resp.mean[1],R31DD.co2$Resp.mean[1])
+SNF.down <- c(A21DA$SNF.N2[1],A21DB$SNF.N2[1],
+              A21DC$SNF.N2[1],A21DD$SNF.N2[1],
+              G21DA$SNF.N2[1],G21DB$SNF.N2[1],
+              G21DC$SNF.N2[1],G21DD$SNF.N2[1],
+              M21DA$SNF.N2[1],M21DB$SNF.N2[1],
+              M21DC$SNF.N2[1],M21DD$SNF.N2[1],
+              R21DA$SNF.N2[1],R21DB$SNF.N2[1],
+              R21DC$SNF.N2[1],R21DD$SNF.N2[1],
+              A31DA$SNF.N2[1],A31DB$SNF.N2[1],
+              A31DC$SNF.N2[1],A31DD$SNF.N2[1],
+              G31DA$SNF.N2[1],G31DB$SNF.N2[1],
+              G31DC$SNF.N2[1],G31DD$SNF.N2[1],
+              M31DA$SNF.N2[1],M31DB$SNF.N2[1],
+              M31DC$SNF.N2[1],M31DD$SNF.N2[1],
+              R31DA$SNF.N2[1],R31DB$SNF.N2[1],
+              R31DC$SNF.N2[1],R31DD$SNF.N2[1])
+biome.temp.down<-c("temp21","temp21","temp21","temp21","trop21","trop21","trop21","trop21","trop21","trop21","trop21","trop21","temp21","temp21","temp21","temp21",
+                   "temp31","temp31","temp31","temp31","trop31","trop31","trop31","trop31","trop31","trop31","trop31","trop31","temp31","temp31","temp31","temp31")
+
+df.down <- tibble(
+  treatment = treat.down,
+  tL        = as.numeric(tL.down),               
+  biome.temp       = biome.temp.down,
+  species = sp.down,
+  Resp      = Resp.down,
+  SNF = SNF.down
+)
+
+df.down <- df.down %>%
+  mutate(
+    temperature = str_extract(treatment, "(21|31)$")
+  )
+
+# For plotting
+df.down <- df.down %>%
+  dplyr::mutate(
+    color = dplyr::case_when(
+      temperature == "31" ~ "red",
+      temperature == "21" ~ "blue",
+      TRUE                ~ NA_character_
+    ),
+    pct = dplyr::case_when(
+      stringr::str_starts(biome.temp, "temp") ~ 16,
+      stringr::str_starts(biome.temp, "trop") ~ 17,
+      TRUE                                     ~ NA_real_
+    )
+  )
+
+# Subset for below analyses
+df.down.A21 <- df.down[df.down$treatment == "A21",]
+df.down.G21 <- df.down[df.down$treatment == "G21",]
+df.down.M21 <- df.down[df.down$treatment == "M21",]
+df.down.R21 <- df.down[df.down$treatment == "R21",]
+df.down.A31 <- df.down[df.down$treatment == "A31",]
+df.down.G31 <- df.down[df.down$treatment == "G31",]
+df.down.M31 <- df.down[df.down$treatment == "M31",]
+df.down.R31 <- df.down[df.down$treatment == "R31",]
+
+# Treatment level
+summary(lm(log(df.down.A21$tL) ~ df.down.A21$Resp)) # p = 0.048
+summary(lm(log(df.down.G21$tL) ~ df.down.G21$Resp)) # p = 0.32
+summary(lm(log(df.down.M21$tL) ~ df.down.M21$Resp)) # p = 0.34
+summary(lm(log(df.down.R21$tL) ~ df.down.R21$Resp)) # p = 0.071
+summary(lm(log(df.down.A31$tL) ~ df.down.A31$Resp)) # p = 0.47
+summary(lm(log(df.down.G31$tL) ~ df.down.G31$Resp)) # p = 0.68
+summary(lm(log(df.down.M31$tL) ~ df.down.M31$Resp)) # p = 0.21
+summary(lm(log(df.down.R31$tL) ~ df.down.R31$Resp)) # p = 0.80
+summary(lm(log(df.down.A21$tL) ~ df.down.A21$SNF)) # p = 0.49
+summary(lm(log(df.down.G21$tL) ~ df.down.G21$SNF)) # p = 0.89
+summary(lm(log(df.down.M21$tL) ~ df.down.M21$SNF)) # p = 0.85
+summary(lm(log(df.down.R21$tL) ~ df.down.R21$SNF)) # p = 0.28
+summary(lm(log(df.down.A31$tL) ~ df.down.A31$SNF)) # p = 0.45
+summary(lm(log(df.down.G31$tL) ~ df.down.G31$SNF)) # p = 0.46
+summary(lm(log(df.down.M31$tL) ~ df.down.M31$SNF)) # p = 0.84
+summary(lm(log(df.down.R31$tL) ~ df.down.R31$SNF)) # p = 0.98
+
+# Across treatments
+tL.down.size.rate.lm.log <- lm(log10(tL) ~ Resp + c(1000*SNF), data = df.down)
+tL.down.size.lm.log <- lm(log10(tL) ~ Resp, data = df.down)
+tL.down.rate.lm.log <- lm(log10(tL) ~ c(1000*SNF), data = df.down)
+tL.down.null.lm.log <- lm(log10(tL) ~ 1, data = df.down)
+
+tL.down.tr.size.rate.lm.log<-lm(log(tL.down)~treat.down + Resp.down + c(1000*SNF.down))
+tL.down.sym.size.rate.lm.log<-lm(log(tL.down)~sym.down + Resp.down + c(1000*SNF.down))
+tL.down.temp.size.rate.lm.log<-lm(log(tL.down)~temp.down + Resp.down + c(1000*SNF.down))
+tL.down.biome.size.rate.lm.log<-lm(log(tL.down)~biome.down + Resp.down + c(1000*SNF.down))
+tL.down.sp.size.rate.lm.log<-lm(log(tL.down)~sp.down + Resp.down + c(1000*SNF.down))
+tL.down.sp.temp.size.rate.lm.log<-lm(log(tL.down)~sp.down*temp.down + Resp.down + c(1000*SNF.down))
+tL.down.biome.temp.size.rate.lm.log<-lm(log(tL.down)~biome.down*temp.down + Resp.down + c(1000*SNF.down))
+tL.down.sym.temp.size.rate.lm.log<-lm(log(tL.down)~sym.down*temp.down + Resp.down + c(1000*SNF.down))
+
+tL.down.tr.size.lm.log<-lm(log(tL.down)~treat.down + Resp.down)
+tL.down.sym.size.lm.log<-lm(log(tL.down)~sym.down + Resp.down)
+tL.down.temp.size.lm.log<-lm(log(tL.down)~temp.down + Resp.down)
+tL.down.biome.size.lm.log<-lm(log(tL.down)~biome.down + Resp.down)
+tL.down.sp.size.lm.log<-lm(log(tL.down)~sp.down + Resp.down)
+tL.down.sp.temp.size.lm.log<-lm(log(tL.down)~sp.down*temp.down + Resp.down)
+tL.down.biome.temp.size.lm.log<-lm(log(tL.down)~biome.down*temp.down + Resp.down)
+tL.down.sym.temp.size.lm.log<-lm(log(tL.down)~sym.down*temp.down + Resp.down)
+
+tL.down.tr.rate.lm.log<-lm(log(tL.down)~treat.down + c(1000*SNF.down))
+tL.down.sym.rate.lm.log<-lm(log(tL.down)~sym.down + c(1000*SNF.down))
+tL.down.temp.rate.lm.log<-lm(log(tL.down)~temp.down + c(1000*SNF.down))
+tL.down.biome.rate.lm.log<-lm(log(tL.down)~biome.down + c(1000*SNF.down))
+tL.down.sp.rate.lm.log<-lm(log(tL.down)~sp.down + c(1000*SNF.down))
+tL.down.sp.temp.rate.lm.log<-lm(log(tL.down)~sp.down*temp.down + c(1000*SNF.down))
+tL.down.biome.temp.rate.lm.log<-lm(log(tL.down)~biome.down*temp.down + c(1000*SNF.down))
+tL.down.sym.temp.rate.lm.log<-lm(log(tL.down)~sym.down*temp.down + c(1000*SNF.down))
+
+tL.down.tr.lm.log<-lm(log(tL.down)~treat.down)
+tL.down.sym.lm.log<-lm(log(tL.down)~sym.down)
+tL.down.temp.lm.log<-lm(log(tL.down)~temp.down)
+tL.down.biome.lm.log<-lm(log(tL.down)~biome.down)
+tL.down.sp.lm.log<-lm(log(tL.down)~sp.down)
+tL.down.sp.temp.lm.log<-lm(log(tL.down)~sp.down*temp.down)
+tL.down.biome.temp.lm.log<-lm(log(tL.down)~biome.down*temp.down)
+tL.down.sym.temp.lm.log<-lm(log(tL.down)~sym.down*temp.down)
+
+AICctab(tL.down.size.rate.lm.log,tL.down.size.lm.log,
+        tL.down.rate.lm.log,tL.down.null.lm.log,
+        tL.down.tr.lm.log,tL.down.sym.lm.log,
+        tL.down.temp.lm.log,tL.down.biome.lm.log,tL.down.sp.lm.log,tL.down.sp.temp.lm.log,
+        tL.down.biome.temp.lm.log,tL.down.sym.temp.lm.log,
+        tL.down.tr.size.lm.log,tL.down.sym.size.lm.log,
+        tL.down.temp.size.lm.log,tL.down.biome.size.lm.log,tL.down.sp.size.lm.log,tL.down.sp.temp.size.lm.log,
+        tL.down.biome.temp.size.lm.log,tL.down.sym.temp.size.lm.log,
+        tL.down.tr.size.rate.lm.log,tL.down.sym.size.rate.lm.log,
+        tL.down.temp.size.rate.lm.log,tL.down.biome.size.rate.lm.log,tL.down.sp.size.rate.lm.log,tL.down.sp.temp.size.rate.lm.log,
+        tL.down.biome.temp.size.rate.lm.log,tL.down.sym.temp.size.rate.lm.log,
+        tL.down.tr.rate.lm.log,tL.down.sym.rate.lm.log,
+        tL.down.temp.rate.lm.log,tL.down.biome.rate.lm.log,tL.down.sp.rate.lm.log,tL.down.sp.temp.rate.lm.log,
+        tL.down.biome.temp.rate.lm.log,tL.down.sym.temp.rate.lm.log,nobs=32)
+
+# Best is: 
+tL.down.size.lm.log
+# Respiration is the only predictor
+summary(tL.down.size.lm.log)
+
+# Up-regulation
+Resp.up<-c(                                             G21UA.co2$Resp.mean[1],G21UB.co2$Resp.mean[1],
+                                                        G21UC.co2$Resp.mean[1],M21UA.co2$Resp.mean[1],
+                                                        M21UB.co2$Resp.mean[1],M21UC.co2$Resp.mean[1],
+                                                        M21UD.co2$Resp.mean[1],R21UA.co2$Resp.mean[1],
+                                                        R21UB.co2$Resp.mean[1],R21UC.co2$Resp.mean[1],
+                                                        A31UA.co2$Resp.mean[1],A31UB.co2$Resp.mean[1],
+                                                        A31UC.co2$Resp.mean[1],G31UA.co2$Resp.mean[1],
+                                                        G31UB.co2$Resp.mean[1],G31UC.co2$Resp.mean[1],
+                                                        G31UD.co2$Resp.mean[1],G31UE.co2$Resp.mean[1],
+                                                        G31UF.co2$Resp.mean[1],M31UA.co2$Resp.mean[1],
+                                                        M31UB.co2$Resp.mean[1],M31UC.co2$Resp.mean[1],
+                                                        M31UD.co2$Resp.mean[1],M31UE.co2$Resp.mean[1],
+                                                        M31UF.co2$Resp.mean[1],M31UG.co2$Resp.mean[1],
+                                                        M31UH.co2$Resp.mean[1],R31UA.co2$Resp.mean[1],
+                                                        R31UB.co2$Resp.mean[1],R31UC.co2$Resp.mean[1],
+                                                        R31UD.co2$Resp.mean[1],R31UE.co2$Resp.mean[1],
+                                                        R31UF.co2$Resp.mean[1])
+SNF.up<-c(                                             max(G21UA$SNF),max(G21UB$SNF),
+                                                       max(G21UC$SNF),max(M21UA$SNF),
+                                                       max(M21UB$SNF),max(M21UC$SNF),
+                                                       max(M21UD$SNF),max(R21UA$SNF),
+                                                       max(R21UB$SNF),max(R21UC$SNF),
+                                                       max(A31UA$SNF),max(A31UB$SNF),
+                                                       max(A31UC$SNF),max(G31UA$SNF),
+                                                       max(G31UB$SNF),max(G31UC$SNF),
+                                                       max(G31UD$SNF),max(G31UE$SNF),
+                                                       max(G31UF$SNF),max(M31UA$SNF),
+                                                       max(M31UB$SNF),max(M31UC$SNF),
+                                                       max(M31UD$SNF),max(M31UE$SNF),
+                                                       max(M31UF$SNF),max(M31UG$SNF),
+                                                       max(M31UH$SNF),max(R31UA$SNF),
+                                                       max(R31UB$SNF),max(R31UC$SNF),
+                                                       max(R31UD$SNF),max(R31UE$SNF),
+                                                       max(R31UF$SNF))
+
+df.up <- tibble(
+  replicate = sub("^tLup", "", names(tL.up)),  
+  tL        = as.numeric(tL.up),               
+  sym       = sym.up,
+  species = sp.up,
+  Resp      = Resp.up,
+  SNF = SNF.up
+)
+
+df.up <- df.up %>%        
+  mutate(
+    treatment = substr(replicate, 1, 3)       
+  ) %>%
+  dplyr::select(replicate, treatment, everything())   
+
+df.up <- df.up %>%
+  mutate(
+    temperature = str_extract(treatment, "(21|31)$")
+  )
+
+# Subset for below analyses
+df.up.G21 <- df.up[df.up$treatment == "G21",]
+df.up.M21 <- df.up[df.up$treatment == "M21",]
+df.up.R21 <- df.up[df.up$treatment == "R21",]
+df.up.A31 <- df.up[df.up$treatment == "A31",]
+df.up.G31 <- df.up[df.up$treatment == "G31",]
+df.up.M31 <- df.up[df.up$treatment == "M31",]
+df.up.R31 <- df.up[df.up$treatment == "R31",]
+
+# Treatment level
+summary(lm(df.up.G21$tL ~ df.up.G21$Resp)) # p = 0.191
+summary(lm(df.up.M21$tL ~ df.up.M21$Resp)) # p = 0.779
+summary(lm(df.up.R21$tL ~ df.up.R21$Resp)) # p = 0.833
+summary(lm(df.up.A31$tL ~ df.up.A31$Resp)) # p = 0.128
+summary(lm(df.up.G31$tL ~ df.up.G31$Resp)) # p = 0.845
+summary(lm(df.up.M31$tL ~ df.up.M31$Resp)) # p = 0.605
+summary(lm(df.up.R31$tL ~ df.up.R31$Resp)) # p = 0.265
+summary(lm(df.up.G21$tL ~ df.up.G21$SNF)) # p = 0.58
+summary(lm(df.up.M21$tL ~ df.up.M21$SNF)) # p = 0.84
+summary(lm(df.up.R21$tL ~ df.up.R21$SNF)) # p = 0.43
+summary(lm(df.up.A31$tL ~ df.up.A31$SNF)) # p = 0.22
+summary(lm(df.up.G31$tL ~ df.up.G31$SNF)) # p = 0.68
+summary(lm(df.up.M31$tL ~ df.up.M31$SNF)) # p = 0.22
+summary(lm(df.up.R31$tL ~ df.up.R31$SNF)) # p = 0.60
+
+# Across treatments
+tL.up.size.rate.lm <- lm(tL ~ Resp + c(1000*SNF), data = df.up)
+tL.up.size.lm <- lm(tL ~ Resp, data = df.up)
+tL.up.rate.lm <- lm(tL ~ c(1000*SNF), data = df.up)
+tL.up.null.lm<-lm(tL.up~1)
+
+tL.up.tr.size.rate.lm<-lm(tL.up~treat.up + Resp.up + c(1000*SNF.up))
+tL.up.sym.size.rate.lm<-lm(tL.up~sym.up + Resp.up + c(1000*SNF.up))
+tL.up.temp.size.rate.lm<-lm(tL.up~temp.up + Resp.up + c(1000*SNF.up))
+tL.up.biome.size.rate.lm<-lm(tL.up~biome.up + Resp.up + c(1000*SNF.up))
+tL.up.sp.size.rate.lm<-lm(tL.up~sp.up + Resp.up + c(1000*SNF.up))
+tL.up.sp.temp.size.rate.lm<-lm(tL.up~sp.up*temp.up + Resp.up + c(1000*SNF.up))
+tL.up.biome.temp.size.rate.lm<-lm(tL.up~biome.up*temp.up + Resp.up + c(1000*SNF.up))
+tL.up.sym.temp.size.rate.lm<-lm(tL.up~sym.up*temp.up + Resp.up + c(1000*SNF.up))
+
+tL.up.tr.size.lm<-lm(tL.up~treat.up + Resp.up)
+tL.up.sym.size.lm<-lm(tL.up~sym.up + Resp.up)
+tL.up.temp.size.lm<-lm(tL.up~temp.up + Resp.up)
+tL.up.biome.size.lm<-lm(tL.up~biome.up + Resp.up)
+tL.up.sp.size.lm<-lm(tL.up~sp.up + Resp.up)
+tL.up.sp.temp.size.lm<-lm(tL.up~sp.up*temp.up + Resp.up)
+tL.up.biome.temp.size.lm<-lm(tL.up~biome.up*temp.up + Resp.up)
+tL.up.sym.temp.size.lm<-lm(tL.up~sym.up*temp.up + Resp.up)
+
+tL.up.tr.rate.lm<-lm(tL.up~treat.up + c(1000*SNF.up))
+tL.up.sym.rate.lm<-lm(tL.up~sym.up + c(1000*SNF.up))
+tL.up.temp.rate.lm<-lm(tL.up~temp.up + c(1000*SNF.up))
+tL.up.biome.rate.lm<-lm(tL.up~biome.up + c(1000*SNF.up))
+tL.up.sp.rate.lm<-lm(tL.up~sp.up + c(1000*SNF.up))
+tL.up.sp.temp.rate.lm<-lm(tL.up~sp.up*temp.up + c(1000*SNF.up))
+tL.up.biome.temp.rate.lm<-lm(tL.up~biome.up*temp.up + c(1000*SNF.up))
+tL.up.sym.temp.rate.lm<-lm(tL.up~sym.up*temp.up + c(1000*SNF.up))
+
+AICctab(tL.up.size.rate.lm,tL.up.size.lm,
+       tL.up.rate.lm,tL.up.null.lm,tL.up.tr.lm,tL.up.sym.lm,
+        tL.up.temp.lm,tL.up.biome.lm,tL.up.sp.lm,tL.up.sp.temp.lm,
+        tL.up.biome.temp.lm,tL.up.sym.temp.lm,
+        tL.up.tr.size.lm,tL.up.sym.size.lm,
+        tL.up.temp.size.lm,tL.up.biome.size.lm,tL.up.sp.size.lm,tL.up.sp.temp.size.lm,
+        tL.up.biome.temp.size.lm,tL.up.sym.temp.size.lm,
+        tL.up.tr.size.rate.lm,tL.up.sym.size.rate.lm,
+        tL.up.temp.size.rate.lm,tL.up.biome.size.rate.lm,tL.up.sp.size.rate.lm,tL.up.sp.temp.size.rate.lm,
+        tL.up.biome.temp.size.rate.lm,tL.up.sym.temp.size.rate.lm,
+        tL.up.tr.rate.lm,tL.up.sym.rate.lm,
+        tL.up.temp.rate.lm,tL.up.biome.rate.lm,tL.up.sp.rate.lm,tL.up.sp.temp.rate.lm,
+        tL.up.biome.temp.rate.lm,tL.up.sym.temp.rate.lm,nobs=33)
+
+anova(tL.up.sym.lm,tL.up.sym.rate.lm) #Marginal effect of maximum rate on tL; p = 0.0753
+
 ################################################################################
 ### Figures
 ################################################################################
@@ -2960,9 +3832,9 @@ par(oma=c(5,5,4,4))
 par(mar=c(0,0,0,0))
 
 plot(0:100,(0:100)/100,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,2),xaxt="n",yaxt="n")
-axis(1,at=c(0,20,40,60,80,100),labels=F,cex.axis=1.2)
-axis(2,at=c(0,.5,1,1.5,2),labels=c(0,0.5,1,1.5,2),las=1,cex.axis=1.2)
-title(main=expression('  a'),cex.main=1.2,adj=0,line=-1)
+axis(1,at=c(0,20,40,60,80,100),labels=F,cex.axis=1.5)
+axis(2,at=c(0,.5,1,1.5,2),labels=c(0,0.5,1,1.5,2),las=1,cex.axis=1.5)
+title(main=expression('  a'),cex.main=1.5,adj=0,line=-1)
 polygon(x=c(G21DA$Day,rev(G21DA$Day)),y=c((1+exp(ft_biometemp_down[3]*exp(ft_biometemp_down[10])))*G21DA$SNF.low/exp(ft_biometemp_down[42]),rev((1+exp(ft_biometemp_down[3]*exp(ft_biometemp_down[10])))*G21DA$SNF.high/exp(ft_biometemp_down[42]))),
         col=adjustcolor("black",alpha.f = 0.2),border=NA)
 polygon(x=c(G21DB$Day,rev(G21DB$Day)),y=c((1+exp(ft_biometemp_down[3]*exp(ft_biometemp_down[11])))*G21DB$SNF.low/exp(ft_biometemp_down[43]),rev((1+exp(ft_biometemp_down[3]*exp(ft_biometemp_down[11])))*G21DB$SNF.high/exp(ft_biometemp_down[43]))),
@@ -2979,13 +3851,13 @@ curve(sigmoid((1+exp(ft_biometemp_down[3]*exp(ft_biometemp_down[10]))),ft_biomet
 curve(sigmoid((1+exp(ft_biometemp_down[3]*exp(ft_biometemp_down[11]))),ft_biometemp_down[3],exp(ft_biometemp_down[11]),x),from=0,to=100,lty=2,col="blue",lwd=1,add=T)
 curve(sigmoid((1+exp(ft_biometemp_down[3]*exp(ft_biometemp_down[12]))),ft_biometemp_down[3],exp(ft_biometemp_down[12]),x),from=0,to=100,lty=2,col="blue",lwd=1,add=T)
 curve(sigmoid((1+exp(ft_biometemp_down[3]*exp(ft_biometemp_down[13]))),ft_biometemp_down[3],exp(ft_biometemp_down[13]),x),from=0,to=100,lty=2,col="blue",lwd=1,add=T)
-mtext(expression(italic(Gliricidia)),side=3,line=1,cex=1)
+mtext(expression(italic(Gliricidia)),side=3,line=1,cex=1.5)
 curve(sigmoid((1+exp(ft_biometemp_down[3]*mean(exp(ft_biometemp_down[6:37])))),ft_biometemp_down[3],mean(exp(ft_biometemp_down[6:37])),x),from=0,to=100,lty=2,col="blue",lwd=4,add=T) #tropical 21
 
 plot(0:100,(0:100)/100,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,2),xaxt="n",yaxt="n")
-axis(1,at=c(0,20,40,60,80,100),labels=F,cex.axis=1.2)
-axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.2)
-title(main=expression('  b'),cex.main=1.2,adj=0,line=-1)
+axis(1,at=c(0,20,40,60,80,100),labels=F,cex.axis=1.5)
+axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.5)
+title(main=expression('  b'),cex.main=1.5,adj=0,line=-1)
 polygon(x=c(R21DA$Day,rev(R21DA$Day)),y=c((1+exp(ft_biometemp_down[2]*exp(ft_biometemp_down[18])))*R21DA$SNF.low/exp(ft_biometemp_down[50]),rev((1+exp(ft_biometemp_down[2]*exp(ft_biometemp_down[18])))*R21DA$SNF.high/exp(ft_biometemp_down[50]))),
         col=adjustcolor("black",alpha.f = 0.2),border=NA)
 polygon(x=c(R21DB$Day,rev(R21DB$Day)),y=c((1+exp(ft_biometemp_down[2]*exp(ft_biometemp_down[19])))*R21DB$SNF.low/exp(ft_biometemp_down[51]),rev((1+exp(ft_biometemp_down[2]*exp(ft_biometemp_down[19])))*R21DB$SNF.high/exp(ft_biometemp_down[51]))),
@@ -3002,13 +3874,13 @@ curve(sigmoid((1+exp(ft_biometemp_down[2]*exp(ft_biometemp_down[18]))),ft_biomet
 curve(sigmoid((1+exp(ft_biometemp_down[2]*exp(ft_biometemp_down[19]))),ft_biometemp_down[2],exp(ft_biometemp_down[19]),x),from=0,to=100,lty=1,col="blue",lwd=1,add=T)
 curve(sigmoid((1+exp(ft_biometemp_down[2]*exp(ft_biometemp_down[20]))),ft_biometemp_down[2],exp(ft_biometemp_down[20]),x),from=0,to=100,lty=1,col="blue",lwd=1,add=T)
 curve(sigmoid((1+exp(ft_biometemp_down[2]*exp(ft_biometemp_down[21]))),ft_biometemp_down[2],exp(ft_biometemp_down[21]),x),from=0,to=100,lty=1,col="blue",lwd=1,add=T)
-mtext(expression(italic(Robinia)),side=3,line=1,cex=1)
+mtext(expression(italic(Robinia)),side=3,line=1,cex=1.5)
 curve(sigmoid((1+exp(ft_biometemp_down[2]*mean(exp(ft_biometemp_down[6:37])))),ft_biometemp_down[2],mean(exp(ft_biometemp_down[6:37])),x),from=0,to=100,lty=1,col="blue",lwd=4,add=T) #temperate 21
 
 plot(0:100,(0:100)/100,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,2),xaxt="n",yaxt="n")
-axis(1,at=c(0,20,40,60,80,100),labels=F,cex.axis=1.2)
-axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.2)
-title(main=expression('  c'),cex.main=1.2,adj=0,line=-1)
+axis(1,at=c(0,20,40,60,80,100),labels=F,cex.axis=1.5)
+axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.5)
+title(main=expression('  c'),cex.main=1.5,adj=0,line=-1)
 polygon(x=c(M21DA$Day,rev(M21DA$Day)),y=c((1+exp(ft_biometemp_down[3]*exp(ft_biometemp_down[14])))*M21DA$SNF.low/exp(ft_biometemp_down[46]),rev((1+exp(ft_biometemp_down[3]*exp(ft_biometemp_down[14])))*M21DA$SNF.high/exp(ft_biometemp_down[46]))),
         col=adjustcolor("black",alpha.f = 0.2),border=NA)
 polygon(x=c(M21DB$Day,rev(M21DB$Day)),y=c((1+exp(ft_biometemp_down[3]*exp(ft_biometemp_down[15])))*M21DB$SNF.low/exp(ft_biometemp_down[47]),rev((1+exp(ft_biometemp_down[3]*exp(ft_biometemp_down[15])))*M21DB$SNF.high/exp(ft_biometemp_down[47]))),
@@ -3025,13 +3897,13 @@ curve(sigmoid((1+exp(ft_biometemp_down[3]*exp(ft_biometemp_down[14]))),ft_biomet
 curve(sigmoid((1+exp(ft_biometemp_down[3]*exp(ft_biometemp_down[15]))),ft_biometemp_down[3],exp(ft_biometemp_down[15]),x),from=0,to=100,lty=2,col="blue",lwd=1,add=T)
 curve(sigmoid((1+exp(ft_biometemp_down[3]*exp(ft_biometemp_down[16]))),ft_biometemp_down[3],exp(ft_biometemp_down[16]),x),from=0,to=100,lty=2,col="blue",lwd=1,add=T)
 curve(sigmoid((1+exp(ft_biometemp_down[3]*exp(ft_biometemp_down[17]))),ft_biometemp_down[3],exp(ft_biometemp_down[17]),x),from=0,to=100,lty=2,col="blue",lwd=1,add=T)
-mtext(expression(italic(Morella)),side=3,line=1,cex=1)
+mtext(expression(italic(Morella)),side=3,line=1,cex=1.5)
 curve(sigmoid((1+exp(ft_biometemp_down[3]*mean(exp(ft_biometemp_down[6:37])))),ft_biometemp_down[3],mean(exp(ft_biometemp_down[6:37])),x),from=0,to=100,lty=2,col="blue",lwd=4,add=T) #tropical 21
 
 plot(0:100,(0:100)/100,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,2),xaxt="n",yaxt="n")
-axis(1,at=c(0,20,40,60,80,100),labels=F,cex.axis=1.2)
-axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.2)
-title(main=expression('  d'),cex.main=1.2,adj=0,line=-1)
+axis(1,at=c(0,20,40,60,80,100),labels=F,cex.axis=1.5)
+axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.5)
+title(main=expression('  d'),cex.main=1.5,adj=0,line=-1)
 polygon(x=c(A21DA$Day,rev(A21DA$Day)),y=c((1+exp(ft_biometemp_down[2]*exp(ft_biometemp_down[6])))*A21DA$SNF.low/exp(ft_biometemp_down[38]),rev((1+exp(ft_biometemp_down[2]*exp(ft_biometemp_down[6])))*A21DA$SNF.high/exp(ft_biometemp_down[38]))),
         col=adjustcolor("black",alpha.f = 0.2),border=NA)
 polygon(x=c(A21DB$Day,rev(A21DB$Day)),y=c((1+exp(ft_biometemp_down[2]*exp(ft_biometemp_down[7])))*A21DB$SNF.low/exp(ft_biometemp_down[39]),rev((1+exp(ft_biometemp_down[2]*exp(ft_biometemp_down[7])))*A21DB$SNF.high/exp(ft_biometemp_down[39]))),
@@ -3048,14 +3920,14 @@ curve(sigmoid((1+exp(ft_biometemp_down[2]*exp(ft_biometemp_down[6]))),ft_biomete
 curve(sigmoid((1+exp(ft_biometemp_down[2]*exp(ft_biometemp_down[7]))),ft_biometemp_down[2],exp(ft_biometemp_down[7]),x),from=0,to=100,lty=1,col="blue",lwd=1,add=T)
 curve(sigmoid((1+exp(ft_biometemp_down[2]*exp(ft_biometemp_down[8]))),ft_biometemp_down[2],exp(ft_biometemp_down[8]),x),from=0,to=100,lty=1,col="blue",lwd=1,add=T)
 curve(sigmoid((1+exp(ft_biometemp_down[2]*exp(ft_biometemp_down[9]))),ft_biometemp_down[2],exp(ft_biometemp_down[9]),x),from=0,to=100,lty=1,col="blue",lwd=1,add=T)
-mtext(expression(italic(Alnus)),side=3,line=1,cex=1)
+mtext(expression(italic(Alnus)),side=3,line=1,cex=1.5)
 curve(sigmoid((1+exp(ft_biometemp_down[2]*mean(exp(ft_biometemp_down[6:37])))),ft_biometemp_down[2],mean(exp(ft_biometemp_down[6:37])),x),from=0,to=100,lty=1,col="blue",lwd=4,add=T) #temperate 21
-mtext(expression('21/15 '*degree*'C'),side=4,line=1,cex=1)
+mtext(expression('21/15 '*degree*'C'),side=4,line=1,cex=1.5)
 
 plot(0:100,(0:100)/100,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,2),xaxt="n",yaxt="n")
-axis(1,at=c(0,20,40,60,80,100),labels=T,cex.axis=1.2)
-axis(2,at=c(0,.5,1,1.5,2),labels=c(0,.5,1,1.5,2),las=1,cex.axis=1.2)
-title(main=expression('  e'),cex.main=1.2,adj=0,line=-1)
+axis(1,at=c(0,20,40,60,80,100),labels=T,cex.axis=1.5)
+axis(2,at=c(0,.5,1,1.5,2),labels=c(0,.5,1,1.5,2),las=1,cex.axis=1.5)
+title(main=expression('  e'),cex.main=1.5,adj=0,line=-1)
 polygon(x=c(G31DA$Day,rev(G31DA$Day)),y=c((1+exp(ft_biometemp_down[5]*exp(ft_biometemp_down[26])))*G31DA$SNF.low/exp(ft_biometemp_down[58]),rev((1+exp(ft_biometemp_down[5]*exp(ft_biometemp_down[26])))*G31DA$SNF.high/exp(ft_biometemp_down[58]))),
         col=adjustcolor("black",alpha.f = 0.2),border=NA)
 polygon(x=c(G31DB$Day,rev(G31DB$Day)),y=c((1+exp(ft_biometemp_down[5]*exp(ft_biometemp_down[27])))*G31DB$SNF.low/exp(ft_biometemp_down[59]),rev((1+exp(ft_biometemp_down[5]*exp(ft_biometemp_down[27])))*G31DB$SNF.high/exp(ft_biometemp_down[59]))),
@@ -3075,9 +3947,9 @@ curve(sigmoid((1+exp(ft_biometemp_down[5]*exp(ft_biometemp_down[29]))),ft_biomet
 curve(sigmoid((1+exp(ft_biometemp_down[5]*mean(exp(ft_biometemp_down[6:37])))),ft_biometemp_down[5],mean(exp(ft_biometemp_down[6:37])),x),from=0,to=100,lty=2,col="red",lwd=4,add=T) #tropical 31
 
 plot(0:100,(0:100)/100,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,2),xaxt="n",yaxt="n")
-axis(1,at=c(0,20,40,60,80,100),labels=T,cex.axis=1.2)
-axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.2)
-title(main=expression('  f'),cex.main=1.2,adj=0,line=-1)
+axis(1,at=c(0,20,40,60,80,100),labels=T,cex.axis=1.5)
+axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.5)
+title(main=expression('  f'),cex.main=1.5,adj=0,line=-1)
 polygon(x=c(R31DA$Day,rev(R31DA$Day)),y=c((1+exp(ft_biometemp_down[4]*exp(ft_biometemp_down[34])))*R31DA$SNF.low/exp(ft_biometemp_down[66]),rev((1+exp(ft_biometemp_down[4]*exp(ft_biometemp_down[34])))*R31DA$SNF.high/exp(ft_biometemp_down[66]))),
         col=adjustcolor("black",alpha.f = 0.2),border=NA)
 polygon(x=c(R31DB$Day,rev(R31DB$Day)),y=c((1+exp(ft_biometemp_down[4]*exp(ft_biometemp_down[35])))*R31DB$SNF.low/exp(ft_biometemp_down[67]),rev((1+exp(ft_biometemp_down[4]*exp(ft_biometemp_down[35])))*R31DB$SNF.high/exp(ft_biometemp_down[67]))),
@@ -3097,9 +3969,9 @@ curve(sigmoid((1+exp(ft_biometemp_down[4]*exp(ft_biometemp_down[37]))),ft_biomet
 curve(sigmoid((1+exp(ft_biometemp_down[4]*mean(exp(ft_biometemp_down[6:37])))),ft_biometemp_down[4],mean(exp(ft_biometemp_down[6:37])),x),from=0,to=100,lty=1,col="red",lwd=4,add=T) #temperate 31
 
 plot(0:100,(0:100)/100,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,2),xaxt="n",yaxt="n")
-axis(1,at=c(0,20,40,60,80,100),labels=T,cex.axis=1.2)
-axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.2)
-title(main=expression('  g'),cex.main=1.2,adj=0,line=-1)
+axis(1,at=c(0,20,40,60,80,100),labels=T,cex.axis=1.5)
+axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.5)
+title(main=expression('  g'),cex.main=1.5,adj=0,line=-1)
 polygon(x=c(M31DA$Day,rev(M31DA$Day)),y=c((1+exp(ft_biometemp_down[5]*exp(ft_biometemp_down[30])))*M31DA$SNF.low/exp(ft_biometemp_down[62]),rev((1+exp(ft_biometemp_down[5]*exp(ft_biometemp_down[30])))*M31DA$SNF.high/exp(ft_biometemp_down[62]))),
         col=adjustcolor("black",alpha.f = 0.2),border=NA)
 polygon(x=c(M31DB$Day,rev(M31DB$Day)),y=c((1+exp(ft_biometemp_down[5]*exp(ft_biometemp_down[31])))*M31DB$SNF.low/exp(ft_biometemp_down[63]),rev((1+exp(ft_biometemp_down[5]*exp(ft_biometemp_down[31])))*M31DB$SNF.high/exp(ft_biometemp_down[63]))),
@@ -3119,9 +3991,9 @@ curve(sigmoid((1+exp(ft_biometemp_down[5]*exp(ft_biometemp_down[33]))),ft_biomet
 curve(sigmoid((1+exp(ft_biometemp_down[5]*mean(exp(ft_biometemp_down[6:37])))),ft_biometemp_down[5],mean(exp(ft_biometemp_down[6:37])),x),from=0,to=100,lty=2,col="red",lwd=4,add=T) #tropical 31
 
 plot(0:100,(0:100)/100,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,2),xaxt="n",yaxt="n")
-axis(1,at=c(0,20,40,60,80,100),labels=T,cex.axis=1.2)
-axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.2)
-title(main=expression('  h'),cex.main=1.2,adj=0,line=-1)
+axis(1,at=c(0,20,40,60,80,100),labels=T,cex.axis=1.5)
+axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.5)
+title(main=expression('  h'),cex.main=1.5,adj=0,line=-1)
 polygon(x=c(A31DA$Day,rev(A31DA$Day)),y=c((1+exp(ft_biometemp_down[4]*exp(ft_biometemp_down[22])))*A31DA$SNF.low/exp(ft_biometemp_down[54]),rev((1+exp(ft_biometemp_down[4]*exp(ft_biometemp_down[22])))*A31DA$SNF.high/exp(ft_biometemp_down[54]))),
         col=adjustcolor("black",alpha.f = 0.2),border=NA)
 polygon(x=c(A31DB$Day,rev(A31DB$Day)),y=c((1+exp(ft_biometemp_down[4]*exp(ft_biometemp_down[23])))*A31DB$SNF.low/exp(ft_biometemp_down[55]),rev((1+exp(ft_biometemp_down[4]*exp(ft_biometemp_down[23])))*A31DB$SNF.high/exp(ft_biometemp_down[55]))),
@@ -3139,19 +4011,19 @@ curve(sigmoid((1+exp(ft_biometemp_down[4]*exp(ft_biometemp_down[23]))),ft_biomet
 curve(sigmoid((1+exp(ft_biometemp_down[4]*exp(ft_biometemp_down[24]))),ft_biometemp_down[4],exp(ft_biometemp_down[24]),x),from=0,to=100,lty=1,col="red",lwd=1,add=T)
 curve(sigmoid((1+exp(ft_biometemp_down[4]*exp(ft_biometemp_down[25]))),ft_biometemp_down[4],exp(ft_biometemp_down[25]),x),from=0,to=100,lty=1,col="red",lwd=1,add=T)
 curve(sigmoid((1+exp(ft_biometemp_down[4]*mean(exp(ft_biometemp_down[6:37])))),ft_biometemp_down[4],mean(exp(ft_biometemp_down[6:37])),x),from=0,to=100,lty=1,col="red",lwd=4,add=T) #temperate 31
-mtext(expression('31/25 '*degree*'C'),side=4,line=1,cex=1)
+mtext(expression('31/25 '*degree*'C'),side=4,line=1,cex=1.5)
 
-mtext(expression('N fixation (normalized to 1 at day = 0)'),side=2,line=2.9,cex=1,outer=T)
-mtext(expression('Time since switching to high N (days)'),side=1,line=3,cex=1,outer=T)
+mtext(expression('N fixation (normalized to 1 at day = 0)'),side=2,line=2.9,cex=1.5,outer=T)
+mtext(expression('Time since switching to high N (days)'),side=1,line=3,cex=1.5,outer=T)
 
 ### Figure 2
 nf<-layout(matrix(seq(1,8,1),2,4,byrow=T),rep(3,8),rep(3,8),T)
 layout.show(nf)
 
 plot(0:200,(0:200)/200,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,2),xaxt="n",yaxt="n")
-axis(1,at=c(0,40,80,120,160,200),labels=F,cex.axis=1.2)
-axis(2,at=c(0,.5,1,1.5,2),labels=c(0,.5,1,1.5,2),cex.axis=1.2,las=1)
-title(main=expression('  a'),cex.main=1.2,adj=0,line=-1)
+axis(1,at=c(0,40,80,120,160,200),labels=F,cex.axis=1.5)
+axis(2,at=c(0,.5,1,1.5,2),labels=c(0,.5,1,1.5,2),cex.axis=1.5,las=1)
+title(main=expression('  a'),cex.main=1.5,adj=0,line=-1)
 polygon(x=c(G21UA$Day,rev(G21UA$Day)),y=c(G21UA$SNF.low/exp(ft_sym_up[37]),rev(G21UA$SNF.high/exp(ft_sym_up[37]))),
         col=adjustcolor("black",alpha.f = 0.2),border=NA)
 polygon(x=c(G21UB$Day,rev(G21UB$Day)),y=c(G21UB$SNF.low/exp(ft_sym_up[38]),rev(G21UB$SNF.high/exp(ft_sym_up[38]))),
@@ -3165,12 +4037,12 @@ curve(sigmoid(1,exp(ft_sym_up[2]),exp(ft_sym_up[4]),x),from=0,to=200,lty=1,col="
 curve(sigmoid(1,exp(ft_sym_up[2]),exp(ft_sym_up[5]),x),from=0,to=200,lty=1,col="orchid3",lwd=1,add=T)
 curve(sigmoid(1,exp(ft_sym_up[2]),exp(ft_sym_up[6]),x),from=0,to=200,lty=1,col="orchid3",lwd=1,add=T)
 curve(sigmoid(1,exp(ft_sym_up[2]),tL.up.rhiz.est,x),from=0,to=200,lty=1,col="orchid3",lwd=5,add=T)
-mtext(expression(italic(Gliricidia)),side=3,line=1,cex=1)
+mtext(expression(italic(Gliricidia)),side=3,line=1,cex=1.5)
 
 plot(0:200,(0:200)/200,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,2),xaxt="n",yaxt="n")
-axis(1,at=c(0,40,80,120,160,200),labels=F,cex.axis=1.2)
-axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.2)
-title(main=expression('  b'),cex.main=1.2,adj=0,line=-1)
+axis(1,at=c(0,40,80,120,160,200),labels=F,cex.axis=1.5)
+axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.5)
+title(main=expression('  b'),cex.main=1.5,adj=0,line=-1)
 polygon(x=c(R21UA$Day,rev(R21UA$Day)),y=c(R21UA$SNF.low/exp(ft_sym_up[44]),rev(R21UA$SNF.high/exp(ft_sym_up[44]))),
         col=adjustcolor("black",alpha.f = 0.2),border=NA)
 polygon(x=c(R21UB$Day,rev(R21UB$Day)),y=c(R21UB$SNF.low/exp(ft_sym_up[45]),rev(R21UB$SNF.high/exp(ft_sym_up[45]))),
@@ -3184,12 +4056,12 @@ curve(sigmoid(1,exp(ft_sym_up[2]),exp(ft_sym_up[11]),x),from=0,to=200,lty=1,col=
 curve(sigmoid(1,exp(ft_sym_up[2]),exp(ft_sym_up[12]),x),from=0,to=200,lty=1,col="orchid3",lwd=1,add=T)
 curve(sigmoid(1,exp(ft_sym_up[2]),exp(ft_sym_up[13]),x),from=0,to=200,lty=1,col="orchid3",lwd=1,add=T)
 curve(sigmoid(1,exp(ft_sym_up[2]),tL.up.rhiz.est,x),from=0,to=200,lty=1,col="orchid3",lwd=5,add=T)
-mtext(expression(italic(Robinia)),side=3,line=1,cex=1)
+mtext(expression(italic(Robinia)),side=3,line=1,cex=1.5)
 
 plot(0:200,(0:200)/200,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,2),xaxt="n",yaxt="n")
-axis(1,at=c(0,40,80,120,160,200),labels=F,cex.axis=1.2)
-axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.2)
-title(main=expression('  c'),cex.main=1.2,adj=0,line=-1)
+axis(1,at=c(0,40,80,120,160,200),labels=F,cex.axis=1.5)
+axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.5)
+title(main=expression('  c'),cex.main=1.5,adj=0,line=-1)
 polygon(x=c(M21UA$Day,rev(M21UA$Day)),y=c(M21UA$SNF.low/exp(ft_sym_up[40]),rev(M21UA$SNF.high/exp(ft_sym_up[40]))),
         col=adjustcolor("black",alpha.f = 0.2),border=NA)
 polygon(x=c(M21UB$Day,rev(M21UB$Day)),y=c(M21UB$SNF.low/exp(ft_sym_up[41]),rev(M21UB$SNF.high/exp(ft_sym_up[41]))),
@@ -3207,15 +4079,15 @@ curve(sigmoid(1,exp(ft_sym_up[3]),exp(ft_sym_up[8]),x),from=0,to=200,lty=1,col="
 curve(sigmoid(1,exp(ft_sym_up[3]),exp(ft_sym_up[9]),x),from=0,to=200,lty=1,col="goldenrod1",lwd=1,add=T)
 curve(sigmoid(1,exp(ft_sym_up[3]),exp(ft_sym_up[10]),x),from=0,to=200,lty=1,col="goldenrod1",lwd=1,add=T)
 curve(sigmoid(1,exp(ft_sym_up[3]),tL.up.actin.est,x),from=0,to=200,lty=1,col="goldenrod1",lwd=5,add=T)
-mtext(expression(italic(Morella)),side=3,line=1,cex=1)
-mtext(expression('21/15 '*degree*'C'),side=4,line=1,cex=1)
+mtext(expression(italic(Morella)),side=3,line=1,cex=1.5)
+mtext(expression('21/15 '*degree*'C'),side=4,line=1,cex=1.5)
 
 plot(0:200,(0:200)/200,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,2),xaxt="n",yaxt="n",bty="n")
 
 plot(0:200,(0:200)/200,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,2),xaxt="n",yaxt="n")
-axis(1,at=c(0,40,80,120,160,200),labels=T,cex.axis=1.2)
-axis(2,at=c(0,.5,1,1.5,2),labels=c(0,0.5,1,1.5,2),cex.axis=1.2,las=1)
-title(main=expression('  d'),cex.main=1.2,adj=0,line=-1)
+axis(1,at=c(0,40,80,120,160,200),labels=T,cex.axis=1.5)
+axis(2,at=c(0,.5,1,1.5,2),labels=c(0,0.5,1,1.5,2),cex.axis=1.5,las=1)
+title(main=expression('  d'),cex.main=1.5,adj=0,line=-1)
 polygon(x=c(G31UA$Day,rev(G31UA$Day)),y=c(G31UA$SNF.low/exp(ft_sym_up[50]),rev(G31UA$SNF.high/exp(ft_sym_up[50]))),
         col=adjustcolor("black",alpha.f = 0.2),border=NA)
 polygon(x=c(G31UB$Day,rev(G31UB$Day)),y=c(G31UB$SNF.low/exp(ft_sym_up[51]),rev(G31UB$SNF.high/exp(ft_sym_up[51]))),
@@ -3243,9 +4115,9 @@ curve(sigmoid(1,exp(ft_sym_up[2]),exp(ft_sym_up[22]),x),from=0,to=200,lty=1,col=
 curve(sigmoid(1,exp(ft_sym_up[2]),tL.up.rhiz.est,x),from=0,to=200,lty=1,col="orchid3",lwd=5,add=T)
 
 plot(0:200,(0:200)/200,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,2),xaxt="n",yaxt="n")
-axis(1,at=c(0,40,80,120,160,200),labels=T,cex.axis=1.2)
-axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.2)
-title(main=expression('  e'),cex.main=1.2,adj=0,line=-1)
+axis(1,at=c(0,40,80,120,160,200),labels=T,cex.axis=1.5)
+axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.5)
+title(main=expression('  e'),cex.main=1.5,adj=0,line=-1)
 polygon(x=c(R31UA$Day,rev(R31UA$Day)),y=c(R31UA$SNF.low/exp(ft_sym_up[64]),rev(R31UA$SNF.high/exp(ft_sym_up[64]))),
         col=adjustcolor("black",alpha.f = 0.2),border=NA)
 polygon(x=c(R31UB$Day,rev(R31UB$Day)),y=c(R31UB$SNF.low/exp(ft_sym_up[65]),rev(R31UB$SNF.high/exp(ft_sym_up[65]))),
@@ -3273,9 +4145,9 @@ curve(sigmoid(1,exp(ft_sym_up[2]),exp(ft_sym_up[36]),x),from=0,to=200,lty=1,col=
 curve(sigmoid(1,exp(ft_sym_up[2]),tL.up.rhiz.est,x),from=0,to=200,lty=1,col="orchid3",lwd=5,add=T)
 
 plot(0:200,(0:200)/200,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,2),xaxt="n",yaxt="n")
-axis(1,at=c(0,40,80,120,160,200),labels=T,cex.axis=1.2)
-axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.2)
-title(main=expression('  f'),cex.main=1.2,adj=0,line=-1)
+axis(1,at=c(0,40,80,120,160,200),labels=T,cex.axis=1.5)
+axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.5)
+title(main=expression('  f'),cex.main=1.5,adj=0,line=-1)
 polygon(x=c(M31UA$Day,rev(M31UA$Day)),y=c(M31UA$SNF.low/exp(ft_sym_up[56]),rev(M31UA$SNF.high/exp(ft_sym_up[56]))),
         col=adjustcolor("black",alpha.f = 0.2),border=NA)
 polygon(x=c(M31UB$Day,rev(M31UB$Day)),y=c(M31UB$SNF.low/exp(ft_sym_up[57]),rev(M31UB$SNF.high/exp(ft_sym_up[57]))),
@@ -3311,9 +4183,9 @@ curve(sigmoid(1,exp(ft_sym_up[3]),exp(ft_sym_up[30]),x),from=0,to=200,lty=1,col=
 curve(sigmoid(1,exp(ft_sym_up[3]),tL.up.actin.est,x),from=0,to=200,lty=1,col="goldenrod1",lwd=5,add=T)
 
 plot(0:200,(0:200)/200,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,2),xaxt="n",yaxt="n")
-axis(1,at=c(0,40,80,120,160,200),labels=T,cex.axis=1.2)
-axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.2)
-title(main=expression('  g'),cex.main=1.2,adj=0,line=-1)
+axis(1,at=c(0,40,80,120,160,200),labels=T,cex.axis=1.5)
+axis(2,at=c(0,.5,1,1.5,2),labels=F,cex.axis=1.5)
+title(main=expression('  g'),cex.main=1.5,adj=0,line=-1)
 polygon(x=c(A31UA$Day,rev(A31UA$Day)),y=c(A31UA$SNF.low/exp(ft_sym_up[47]),rev(A31UA$SNF.high/exp(ft_sym_up[47]))),
         col=adjustcolor("black",alpha.f = 0.2),border=NA)
 polygon(x=c(A31UB$Day,rev(A31UB$Day)),y=c(A31UB$SNF.low/exp(ft_sym_up[48]),rev(A31UB$SNF.high/exp(ft_sym_up[48]))),
@@ -3327,11 +4199,11 @@ curve(sigmoid(1,exp(ft_sym_up[3]),exp(ft_sym_up[14]),x),from=0,to=200,lty=1,col=
 curve(sigmoid(1,exp(ft_sym_up[3]),exp(ft_sym_up[15]),x),from=0,to=200,lty=1,col="goldenrod1",lwd=1,add=T)
 curve(sigmoid(1,exp(ft_sym_up[3]),exp(ft_sym_up[16]),x),from=0,to=200,lty=1,col="goldenrod1",lwd=1,add=T)
 curve(sigmoid(1,exp(ft_sym_up[3]),tL.up.actin.est,x),from=0,to=200,lty=1,col="goldenrod1",lwd=5,add=T)
-mtext(expression(italic(Alnus)),side=3,line=1,cex=1)
-mtext(expression('31/25 '*degree*'C'),side=4,line=1,cex=1)
+mtext(expression(italic(Alnus)),side=3,line=1,cex=1.5)
+mtext(expression('31/25 '*degree*'C'),side=4,line=1,cex=1.5)
 
-mtext(expression('N fixation (normalized to 1 at maximum)'),side=2,line=2.9,cex=1,outer=T)
-mtext(expression('Time since switching to low N (days)'),side=1,line=3,cex=1,outer=T)
+mtext(expression('N fixation (normalized to 1 at maximum)'),side=2,line=2.9,cex=1.5,outer=T)
+mtext(expression('Time since switching to low N (days)'),side=1,line=3,cex=1.5,outer=T)
 
 ### Figure 3
 par(mfrow=c(1,1))
@@ -3957,9 +4829,9 @@ polygon(x=c(G31DC$Day,rev(G31DC$Day)),y=c(G31DC$SNF.low/3.84,rev(G31DC$SNF.high/
 polygon(x=c(G31DD$Day,rev(G31DD$Day)),y=c(G31DD$SNF.low/3.84,rev(G31DD$SNF.high/3.84)),
         col=adjustcolor("black",alpha.f = 0.2),border=NA)
 points(SNF/3.84~Day,data=G31DA,lwd=1,type="p",col="black",pch=0)
-points(SNF/3.84~Day,data=G31DB,lwd=1,type="p",col="black",pch=0)
-points(SNF/3.84~Day,data=G31DC,lwd=1,type="p",col="black",pch=0)
-points(SNF/3.84~Day,data=G31DD,lwd=1,type="p",col="black",pch=0)
+points(SNF/3.84~Day,data=G31DB,lwd=1,type="p",col="black",pch=1)
+points(SNF/3.84~Day,data=G31DC,lwd=1,type="p",col="black",pch=2)
+points(SNF/3.84~Day,data=G31DD,lwd=1,type="p",col="black",pch=3)
 curve(sigmoid(exp(ft_biometemp_down[58])/3.84,ft_biometemp_down[5],exp(ft_biometemp_down[26]),x),from=0,to=100,lty=2,col="red",lwd=1,add=T)
 curve(sigmoid(exp(ft_biometemp_down[59])/3.84,ft_biometemp_down[5],exp(ft_biometemp_down[27]),x),from=0,to=100,lty=2,col="red",lwd=1,add=T)
 curve(sigmoid(exp(ft_biometemp_down[60])/3.84,ft_biometemp_down[5],exp(ft_biometemp_down[28]),x),from=0,to=100,lty=2,col="red",lwd=1,add=T)
@@ -3978,9 +4850,9 @@ polygon(x=c(R31DC$Day,rev(R31DC$Day)),y=c(R31DC$SNF.low/4.27,rev(R31DC$SNF.high/
 polygon(x=c(R31DD$Day,rev(R31DD$Day)),y=c(R31DD$SNF.low/4.27,rev(R31DD$SNF.high/4.27)),
         col=adjustcolor("black",alpha.f = 0.2),border=NA)
 points(SNF/4.27~Day,data=R31DA,lwd=1,type="p",col="black",pch=0)
-points(SNF/4.27~Day,data=R31DB,lwd=1,type="p",col="black",pch=0)
-points(SNF/4.27~Day,data=R31DC,lwd=1,type="p",col="black",pch=0)
-points(SNF/4.27~Day,data=R31DD,lwd=1,type="p",col="black",pch=0)
+points(SNF/4.27~Day,data=R31DB,lwd=1,type="p",col="black",pch=1)
+points(SNF/4.27~Day,data=R31DC,lwd=1,type="p",col="black",pch=2)
+points(SNF/4.27~Day,data=R31DD,lwd=1,type="p",col="black",pch=3)
 curve(sigmoid(exp(ft_biometemp_down[66])/4.27,ft_biometemp_down[4],exp(ft_biometemp_down[34]),x),from=0,to=100,lty=1,col="red",lwd=1,add=T)
 curve(sigmoid(exp(ft_biometemp_down[67])/4.27,ft_biometemp_down[4],exp(ft_biometemp_down[35]),x),from=0,to=100,lty=1,col="red",lwd=1,add=T)
 curve(sigmoid(exp(ft_biometemp_down[68])/4.27,ft_biometemp_down[4],exp(ft_biometemp_down[36]),x),from=0,to=100,lty=1,col="red",lwd=1,add=T)
@@ -3999,9 +4871,9 @@ polygon(x=c(M31DC$Day,rev(M31DC$Day)),y=c(M31DC$SNF.low/4.98,rev(M31DC$SNF.high/
 polygon(x=c(M31DD$Day,rev(M31DD$Day)),y=c(M31DD$SNF.low/4.98,rev(M31DD$SNF.high/4.98)),
         col=adjustcolor("black",alpha.f = 0.2),border=NA)
 points(SNF/4.98~Day,data=M31DA,lwd=1,type="p",col="black",pch=0)
-points(SNF/4.98~Day,data=M31DB,lwd=1,type="p",col="black",pch=0)
-points(SNF/4.98~Day,data=M31DC,lwd=1,type="p",col="black",pch=0)
-points(SNF/4.98~Day,data=M31DD,lwd=1,type="p",col="black",pch=0)
+points(SNF/4.98~Day,data=M31DB,lwd=1,type="p",col="black",pch=1)
+points(SNF/4.98~Day,data=M31DC,lwd=1,type="p",col="black",pch=2)
+points(SNF/4.98~Day,data=M31DD,lwd=1,type="p",col="black",pch=3)
 curve(sigmoid(exp(ft_biometemp_down[62])/4.98,ft_biometemp_down[5],exp(ft_biometemp_down[30]),x),from=0,to=100,lty=2,col="red",lwd=1,add=T)
 curve(sigmoid(exp(ft_biometemp_down[63])/4.98,ft_biometemp_down[5],exp(ft_biometemp_down[31]),x),from=0,to=100,lty=2,col="red",lwd=1,add=T)
 curve(sigmoid(exp(ft_biometemp_down[64])/4.98,ft_biometemp_down[5],exp(ft_biometemp_down[32]),x),from=0,to=100,lty=2,col="red",lwd=1,add=T)
@@ -4020,9 +4892,9 @@ polygon(x=c(A31DC$Day,rev(A31DC$Day)),y=c(A31DC$SNF.low/3.15,rev(A31DC$SNF.high/
 polygon(x=c(A31DD$Day,rev(A31DD$Day)),y=c(A31DD$SNF.low/3.15,rev(A31DD$SNF.high/3.15)),
         col=adjustcolor("black",alpha.f = 0.2),border=NA)
 points(SNF/3.15~Day,data=A31DA,lwd=1,type="p",col="black",pch=0)
-points(SNF/3.15~Day,data=A31DB,lwd=1,type="p",col="black",pch=0)
-points(SNF/3.15~Day,data=A31DC,lwd=1,type="p",col="black",pch=0)
-points(SNF/3.15~Day,data=A31DD,lwd=1,type="p",col="black",pch=0)
+points(SNF/3.15~Day,data=A31DB,lwd=1,type="p",col="black",pch=1)
+points(SNF/3.15~Day,data=A31DC,lwd=1,type="p",col="black",pch=2)
+points(SNF/3.15~Day,data=A31DD,lwd=1,type="p",col="black",pch=3)
 curve(sigmoid(exp(ft_biometemp_down[54])/3.15,ft_biometemp_down[4],exp(ft_biometemp_down[22]),x),from=0,to=100,lty=1,col="red",lwd=1,add=T)
 curve(sigmoid(exp(ft_biometemp_down[55])/3.15,ft_biometemp_down[4],exp(ft_biometemp_down[23]),x),from=0,to=100,lty=1,col="red",lwd=1,add=T)
 curve(sigmoid(exp(ft_biometemp_down[56])/3.15,ft_biometemp_down[4],exp(ft_biometemp_down[24]),x),from=0,to=100,lty=1,col="red",lwd=1,add=T)
@@ -4218,7 +5090,314 @@ mtext(expression('N fixation per whole-symbiosis respiration'),side=2,line=5.5,c
 mtext(expression('(mol N'[2]*' mol CO'[2]^-1*')'),side=2,line=3.5,cex=1,outer=T)
 mtext(expression('Time since switching to low N (days)'),side=1,line=3,cex=1,outer=T)
 
+
 ### Figure S4
+nf<-layout(matrix(seq(1,8,1),2,4,byrow=T),rep(3,8),rep(3,8),T)
+layout.show(nf)
+par(oma=c(5,7,4,4))
+par(mar=c(0,0,0,0))
+
+plot(0:100,(0:100)/100,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,0.5),xaxt="n",yaxt="n")
+axis(1,at=c(0,20,40,60,80,100),labels=F,cex.axis=1.2)
+axis(2,at=c(0,0.1,0.2,0.3,0.4,0.5),labels=T,cex.axis=1.2,las=1)
+title(main=expression('  a'),cex.main=1.2,adj=0,line=-1)
+polygon(x=c(G21DA$Day,rev(G21DA$Day)),y=c(G21DA$SNF.raw.low,rev(G21DA$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(G21DB$Day,rev(G21DB$Day)),y=c(G21DB$SNF.raw.low,rev(G21DB$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(G21DC$Day,rev(G21DC$Day)),y=c(G21DC$SNF.raw.low,rev(G21DC$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(G21DD$Day,rev(G21DD$Day)),y=c(G21DD$SNF.raw.low,rev(G21DD$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+points(SNF.raw~Day,data=G21DA,lwd=1,type="b",col="black",pch=0)
+points(SNF.raw~Day,data=G21DB,lwd=1,type="b",col="black",pch=1)
+points(SNF.raw~Day,data=G21DC,lwd=1,type="b",col="black",pch=2)
+points(SNF.raw~Day,data=G21DD,lwd=1,type="b",col="black",pch=3)
+mtext(expression(italic(Gliricidia)),side=3,line=1,cex=1)
+
+plot(0:100,(0:100)/100,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,0.5),xaxt="n",yaxt="n")
+axis(1,at=c(0,20,40,60,80,100),labels=F,cex.axis=1.2)
+axis(2,at=c(0,0.1,0.2,0.3,0.4,0.5),labels=F,cex.axis=1.2,las=1)
+title(main=expression('  b'),cex.main=1.2,adj=0,line=-1)
+polygon(x=c(R21DA$Day,rev(R21DA$Day)),y=c(R21DA$SNF.raw.low,rev(R21DA$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(R21DB$Day,rev(R21DB$Day)),y=c(R21DB$SNF.raw.low,rev(R21DB$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(R21DC$Day,rev(R21DC$Day)),y=c(R21DC$SNF.raw.low,rev(R21DC$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(R21DD$Day,rev(R21DD$Day)),y=c(R21DD$SNF.raw.low,rev(R21DD$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+points(SNF.raw~Day,data=R21DA,lwd=1,type="b",col="black",pch=0)
+points(SNF.raw~Day,data=R21DB,lwd=1,type="b",col="black",pch=1)
+points(SNF.raw~Day,data=R21DC,lwd=1,type="b",col="black",pch=2)
+points(SNF.raw~Day,data=R21DD,lwd=1,type="b",col="black",pch=3)
+mtext(expression(italic(Robinia)),side=3,line=1,cex=1)
+
+plot(0:100,(0:100)/100,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,0.5),xaxt="n",yaxt="n")
+axis(1,at=c(0,20,40,60,80,100),labels=F,cex.axis=1.2)
+axis(2,at=c(0,0.1,0.2,0.3,0.4,0.5),labels=F,cex.axis=1.2,las=1)
+title(main=expression('  c'),cex.main=1.2,adj=0,line=-1)
+polygon(x=c(M21DA$Day,rev(M21DA$Day)),y=c(M21DA$SNF.raw.low,rev(M21DA$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(M21DB$Day,rev(M21DB$Day)),y=c(M21DB$SNF.raw.low,rev(M21DB$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(M21DC$Day,rev(M21DC$Day)),y=c(M21DC$SNF.raw.low,rev(M21DC$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(M21DD$Day,rev(M21DD$Day)),y=c(M21DD$SNF.raw.low,rev(M21DD$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+points(SNF.raw~Day,data=M21DA,lwd=1,type="b",col="black",lty=2,pch=0)
+points(SNF.raw~Day,data=M21DB,lwd=1,type="b",col="black",lty=2,pch=1)
+points(SNF.raw~Day,data=M21DC,lwd=1,type="b",col="black",lty=2,pch=2)
+points(SNF.raw~Day,data=M21DD,lwd=1,type="b",col="black",lty=2,pch=3)
+mtext(expression(italic(Morella)),side=3,line=1,cex=1)
+
+plot(0:100,(0:100)/100,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,0.5),xaxt="n",yaxt="n")
+axis(1,at=c(0,20,40,60,80,100),labels=F,cex.axis=1.2)
+axis(2,at=c(0,0.1,0.2,0.3,0.4,0.5),labels=F,cex.axis=1.2,las=1)
+title(main=expression('  d'),cex.main=1.2,adj=0,line=-1)
+polygon(x=c(A21DA$Day,rev(A21DA$Day)),y=c(A21DA$SNF.raw.low,rev(A21DA$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(A21DB$Day,rev(A21DB$Day)),y=c(A21DB$SNF.raw.low,rev(A21DB$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(A21DC$Day,rev(A21DC$Day)),y=c(A21DC$SNF.raw.low,rev(A21DC$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(A21DD$Day,rev(A21DD$Day)),y=c(A21DD$SNF.raw.low,rev(A21DD$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+points(SNF.raw~Day,data=A21DA,lwd=1,type="b",col="black",pch=0)
+points(SNF.raw~Day,data=A21DB,lwd=1,type="b",col="black",pch=1)
+points(SNF.raw~Day,data=A21DC,lwd=1,type="b",col="black",pch=2)
+points(SNF.raw~Day,data=A21DD,lwd=1,type="b",col="black",pch=3)
+mtext(expression(italic(Alnus)),side=3,line=1,cex=1)
+mtext(expression('21/15 '*degree*'C'),side=4,line=1,cex=1)
+
+plot(0:100,(0:100)/100,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,0.5),xaxt="n",yaxt="n")
+axis(1,at=c(0,20,40,60,80,100),labels=T,cex.axis=1.2)
+axis(2,at=c(0,0.1,0.2,0.3,0.4,0.5),labels=T,cex.axis=1.2,las=1)
+title(main=expression('  e'),cex.main=1.2,adj=0,line=-1)
+polygon(x=c(G31DA$Day,rev(G31DA$Day)),y=c(G31DA$SNF.raw.low,rev(G31DA$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(G31DB$Day,rev(G31DB$Day)),y=c(G31DB$SNF.raw.low,rev(G31DB$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(G31DC$Day,rev(G31DC$Day)),y=c(G31DC$SNF.raw.low,rev(G31DC$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(G31DD$Day,rev(G31DD$Day)),y=c(G31DD$SNF.raw.low,rev(G31DD$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+points(SNF.raw~Day,data=G31DA,lwd=1,type="b",col="black",pch=0)
+points(SNF.raw~Day,data=G31DB,lwd=1,type="b",col="black",pch=1)
+points(SNF.raw~Day,data=G31DC,lwd=1,type="b",col="black",pch=2)
+points(SNF.raw~Day,data=G31DD,lwd=1,type="b",col="black",pch=3)
+
+plot(0:100,(0:100)/100,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,0.5),xaxt="n",yaxt="n")
+axis(1,at=c(0,20,40,60,80,100),labels=T,cex.axis=1.2)
+axis(2,at=c(0,0.1,0.2,0.3,0.4,0.5),labels=F,cex.axis=1.2,las=1)
+title(main=expression('  f'),cex.main=1.2,adj=0,line=-1)
+polygon(x=c(R31DA$Day,rev(R31DA$Day)),y=c(R31DA$SNF.raw.low,rev(R31DA$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(R31DB$Day,rev(R31DB$Day)),y=c(R31DB$SNF.raw.low,rev(R31DB$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(R31DC$Day,rev(R31DC$Day)),y=c(R31DC$SNF.raw.low,rev(R31DC$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(R31DD$Day,rev(R31DD$Day)),y=c(R31DD$SNF.raw.low,rev(R31DD$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+points(SNF.raw~Day,data=R31DA,lwd=1,type="b",col="black",pch=0)
+points(SNF.raw~Day,data=R31DB,lwd=1,type="b",col="black",pch=1)
+points(SNF.raw~Day,data=R31DC,lwd=1,type="b",col="black",pch=2)
+points(SNF.raw~Day,data=R31DD,lwd=1,type="b",col="black",pch=3)
+
+plot(0:100,(0:100)/100,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,0.5),xaxt="n",yaxt="n")
+axis(1,at=c(0,20,40,60,80,100),labels=T,cex.axis=1.2)
+axis(2,at=c(0,0.1,0.2,0.3,0.4,0.5),labels=F,cex.axis=1.2,las=1)
+title(main=expression('  g'),cex.main=1.2,adj=0,line=-1)
+polygon(x=c(M31DA$Day,rev(M31DA$Day)),y=c(M31DA$SNF.raw.low,rev(M31DA$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(M31DB$Day,rev(M31DB$Day)),y=c(M31DB$SNF.raw.low,rev(M31DB$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(M31DC$Day,rev(M31DC$Day)),y=c(M31DC$SNF.raw.low,rev(M31DC$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(M31DD$Day,rev(M31DD$Day)),y=c(M31DD$SNF.raw.low,rev(M31DD$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+points(SNF.raw~Day,data=M31DA,lwd=1,type="b",col="black",pch=0)
+points(SNF.raw~Day,data=M31DB,lwd=1,type="b",col="black",pch=1)
+points(SNF.raw~Day,data=M31DC,lwd=1,type="b",col="black",pch=2)
+points(SNF.raw~Day,data=M31DD,lwd=1,type="b",col="black",pch=3)
+
+plot(0:100,(0:100)/100,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,0.5),xaxt="n",yaxt="n")
+axis(1,at=c(0,20,40,60,80,100),labels=T,cex.axis=1.2)
+axis(2,at=c(0,0.1,0.2,0.3,0.4,0.5),labels=F,cex.axis=1.2,las=1)
+title(main=expression('  h'),cex.main=1.2,adj=0,line=-1)
+polygon(x=c(A31DA$Day,rev(A31DA$Day)),y=c(A31DA$SNF.raw.low,rev(A31DA$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(A31DB$Day,rev(A31DB$Day)),y=c(A31DB$SNF.raw.low,rev(A31DB$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(A31DC$Day,rev(A31DC$Day)),y=c(A31DC$SNF.raw.low,rev(A31DC$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(A31DD$Day,rev(A31DD$Day)),y=c(A31DD$SNF.raw.low,rev(A31DD$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+points(SNF.raw~Day,data=A31DA,lwd=1,type="b",col="black",pch=0)
+points(SNF.raw~Day,data=A31DB,lwd=1,type="b",col="black",pch=1)
+points(SNF.raw~Day,data=A31DC,lwd=1,type="b",col="black",pch=2)
+points(SNF.raw~Day,data=A31DD,lwd=1,type="b",col="black",pch=3)
+mtext(expression('31/25 '*degree*'C'),side=4,line=1,cex=1)
+
+mtext(expression('N fixation'),side=2,line=5.5,cex=1,outer=T)
+mtext(expression('(nmol N'[2]*' s'^-1*')'),side=2,line=3.5,cex=1,outer=T)
+mtext(expression('Time since switching to high N (days)'),side=1,line=3,cex=1,outer=T)
+
+
+### Figure S5
+nf<-layout(matrix(seq(1,8,1),2,4,byrow=T),rep(3,8),rep(3,8),T)
+layout.show(nf)
+par(oma=c(5,7,4,4))
+par(mar=c(0,0,0,0))
+
+plot(0:200,(0:200)/200,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,0.5),xaxt="n",yaxt="n")
+axis(1,at=c(0,40,80,120,160,200),labels=F,cex.axis=1.2)
+axis(2,at=c(0,0.1,0.2,0.3,0.4,0.5),labels=T,cex.axis=1.2,las=1)
+title(main=expression('  a'),cex.main=1.2,adj=0,line=-1)
+polygon(x=c(G21UA$Day,rev(G21UA$Day)),y=c(G21UA$SNF.raw.low,rev(G21UA$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(G21UB$Day,rev(G21UB$Day)),y=c(G21UB$SNF.raw.low,rev(G21UB$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(G21UC$Day,rev(G21UC$Day)),y=c(G21UC$SNF.raw.low,rev(G21UC$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+points(SNF.raw~Day,data=G21UA,lwd=1,type="b",col="black",pch=0)
+points(SNF.raw~Day,data=G21UB,lwd=1,type="b",col="black",pch=1)
+points(SNF.raw~Day,data=G21UC,lwd=1,type="b",col="black",pch=2)
+mtext(expression(italic(Gliricidia)),side=3,line=1,cex=1)
+
+plot(0:200,(0:200)/200,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,0.5),xaxt="n",yaxt="n")
+axis(1,at=c(0,40,80,120,160,200),labels=F,cex.axis=1.2)
+axis(2,at=c(0,0.1,0.2,0.3,0.4,0.5),labels=F,cex.axis=1.2,las=1)
+title(main=expression('  b'),cex.main=1.2,adj=0,line=-1)
+polygon(x=c(R21UA$Day,rev(R21UA$Day)),y=c(R21UA$SNF.raw.low,rev(R21UA$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(R21UB$Day,rev(R21UB$Day)),y=c(R21UB$SNF.raw.low,rev(R21UB$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(R21UC$Day,rev(R21UC$Day)),y=c(R21UC$SNF.raw.low,rev(R21UC$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+points(SNF.raw~Day,data=R21UA,lwd=1,type="b",col="black",pch=0)
+points(SNF.raw~Day,data=R21UB,lwd=1,type="b",col="black",pch=1)
+points(SNF.raw~Day,data=R21UC,lwd=1,type="b",col="black",pch=2)
+mtext(expression(italic(Robinia)),side=3,line=1,cex=1)
+
+plot(0:200,(0:200)/200,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,0.5),xaxt="n",yaxt="n")
+axis(1,at=c(0,40,80,120,160,200),labels=F,cex.axis=1.2)
+axis(2,at=c(0,0.1,0.2,0.3,0.4,0.5),labels=F,cex.axis=1.2,las=1)
+title(main=expression('  c'),cex.main=1.2,adj=0,line=-1)
+polygon(x=c(M21UA$Day,rev(M21UA$Day)),y=c(M21UA$SNF.raw.low,rev(M21UA$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(M21UB$Day,rev(M21UB$Day)),y=c(M21UB$SNF.raw.low,rev(M21UB$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(M21UC$Day,rev(M21UC$Day)),y=c(M21UC$SNF.raw.low,rev(M21UC$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(M21UD$Day,rev(M21UD$Day)),y=c(M21UD$SNF.raw.low,rev(M21UD$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+points(SNF.raw~Day,data=M21UA,lwd=1,type="b",col="black",pch=0)
+points(SNF.raw~Day,data=M21UB,lwd=1,type="b",col="black",pch=1)
+points(SNF.raw~Day,data=M21UC,lwd=1,type="b",col="black",pch=2)
+points(SNF.raw~Day,data=M21UD,lwd=1,type="b",col="black",pch=3)
+mtext(expression(italic(Morella)),side=3,line=1,cex=1)
+mtext(expression('21/15 '*degree*'C'),side=4,line=1,cex=1)
+
+plot(0:200,(0:200)/200,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,0.015),xaxt="n",yaxt="n",bty="n")
+
+plot(0:200,(0:200)/200,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,0.5),xaxt="n",yaxt="n")
+axis(1,at=c(0,40,80,120,160,200),labels=T,cex.axis=1.2)
+axis(2,at=c(0,0.1,0.2,0.3,0.4,0.5),labels=T,cex.axis=1.2,las=1)
+title(main=expression('  d'),cex.main=1.2,adj=0,line=-1)
+polygon(x=c(G31UA$Day,rev(G31UA$Day)),y=c(G31UA$SNF.raw.low,rev(G31UA$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(G31UB$Day,rev(G31UB$Day)),y=c(G31UB$SNF.raw.low,rev(G31UB$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(G31UC$Day,rev(G31UC$Day)),y=c(G31UC$SNF.raw.low,rev(G31UC$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(G31UD$Day,rev(G31UD$Day)),y=c(G31UD$SNF.raw.low,rev(G31UD$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(G31UE$Day,rev(G31UE$Day)),y=c(G31UE$SNF.raw.low,rev(G31UE$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(G31UF$Day,rev(G31UF$Day)),y=c(G31UF$SNF.raw.low,rev(G31UF$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+points(SNF.raw~Day,data=G31UA,lwd=1,type="b",col="black",pch=0)
+points(SNF.raw~Day,data=G31UB,lwd=1,type="b",col="black",pch=1)
+points(SNF.raw~Day,data=G31UC,lwd=1,type="b",col="black",pch=2)
+points(SNF.raw~Day,data=G31UD,lwd=1,type="b",col="black",pch=3)
+points(SNF.raw~Day,data=G31UE,lwd=1,type="b",col="black",pch=4)
+points(SNF.raw~Day,data=G31UF,lwd=1,type="b",col="black",pch=5)
+
+plot(0:200,(0:200)/200,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,0.5),xaxt="n",yaxt="n")
+axis(1,at=c(0,40,80,120,160,200),labels=T,cex.axis=1.2)
+axis(2,at=c(0,0.1,0.2,0.3,0.4,0.5),labels=F,cex.axis=1.2,las=1)
+title(main=expression('  e'),cex.main=1.2,adj=0,line=-1)
+polygon(x=c(R31UA$Day,rev(R31UA$Day)),y=c(R31UA$SNF.raw.low,rev(R31UA$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(R31UB$Day,rev(R31UB$Day)),y=c(R31UB$SNF.raw.low,rev(R31UB$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(R31UC$Day,rev(R31UC$Day)),y=c(R31UC$SNF.raw.low,rev(R31UC$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(R31UD$Day,rev(R31UD$Day)),y=c(R31UD$SNF.raw.low,rev(R31UD$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(R31UE$Day,rev(R31UE$Day)),y=c(R31UE$SNF.raw.low,rev(R31UE$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(R31UF$Day,rev(R31UF$Day)),y=c(R31UF$SNF.raw.low,rev(R31UF$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+points(SNF.raw~Day,data=R31UA,lwd=1,type="b",col="black",pch=0)
+points(SNF.raw~Day,data=R31UB,lwd=1,type="b",col="black",pch=1)
+points(SNF.raw~Day,data=R31UC,lwd=1,type="b",col="black",pch=2)
+points(SNF.raw~Day,data=R31UD,lwd=1,type="b",col="black",pch=3)
+points(SNF.raw~Day,data=R31UE,lwd=1,type="b",col="black",pch=4)
+points(SNF.raw~Day,data=R31UF,lwd=1,type="b",col="black",pch=5)
+
+plot(0:200,(0:200)/200,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,0.5),xaxt="n",yaxt="n")
+axis(1,at=c(0,40,80,120,160,200),labels=T,cex.axis=1.2)
+axis(2,at=c(0,0.1,0.2,0.3,0.4,0.5),labels=F,cex.axis=1.2,las=1)
+title(main=expression('  f'),cex.main=1.2,adj=0,line=-1)
+polygon(x=c(M31UA$Day,rev(M31UA$Day)),y=c(M31UA$SNF.raw.low,rev(M31UA$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(M31UB$Day,rev(M31UB$Day)),y=c(M31UB$SNF.raw.low,rev(M31UB$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(M31UC$Day,rev(M31UC$Day)),y=c(M31UC$SNF.raw.low,rev(M31UC$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(M31UD$Day,rev(M31UD$Day)),y=c(M31UD$SNF.raw.low,rev(M31UD$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(M31UE$Day,rev(M31UE$Day)),y=c(M31UE$SNF.raw.low,rev(M31UE$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(M31UF$Day,rev(M31UF$Day)),y=c(M31UF$SNF.raw.low,rev(M31UF$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(M31UG$Day,rev(M31UG$Day)),y=c(M31UG$SNF.raw.low,rev(M31UG$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(M31UH$Day,rev(M31UH$Day)),y=c(M31UH$SNF.raw.low,rev(M31UH$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+points(SNF.raw~Day,data=M31UA,lwd=1,type="b",col="black",pch=0)
+points(SNF.raw~Day,data=M31UB,lwd=1,type="b",col="black",pch=1)
+points(SNF.raw~Day,data=M31UC,lwd=1,type="b",col="black",pch=2)
+points(SNF.raw~Day,data=M31UD,lwd=1,type="b",col="black",pch=3)
+points(SNF.raw~Day,data=M31UE,lwd=1,type="b",col="black",pch=4)
+points(SNF.raw~Day,data=M31UF,lwd=1,type="b",col="black",pch=5)
+points(SNF.raw~Day,data=M31UG,lwd=1,type="b",col="black",pch=6)
+points(SNF.raw~Day,data=M31UH,lwd=1,type="b",col="black",pch=7)
+
+plot(0:200,(0:200)/200,col="white",xlab=NA,ylab=NA,las=1,ylim=c(0,0.5),xaxt="n",yaxt="n")
+axis(1,at=c(0,40,80,120,160,200),labels=T,cex.axis=1.2)
+axis(2,at=c(0,0.1,0.2,0.3,0.4,0.5),labels=F,cex.axis=1.2,las=1)
+title(main=expression('  g'),cex.main=1.2,adj=0,line=-1)
+polygon(x=c(A31UA$Day,rev(A31UA$Day)),y=c(A31UA$SNF.raw.low,rev(A31UA$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(A31UB$Day,rev(A31UB$Day)),y=c(A31UB$SNF.raw.low,rev(A31UB$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+polygon(x=c(A31UC$Day,rev(A31UC$Day)),y=c(A31UC$SNF.raw.low,rev(A31UC$SNF.raw.high)),
+        col=adjustcolor("black",alpha.f = 0.2),border=NA)
+points(SNF.raw~Day,data=A31UA,lwd=1,type="b",col="black",pch=0)
+points(SNF.raw~Day,data=A31UB,lwd=1,type="b",col="black",pch=1)
+points(SNF.raw~Day,data=A31UC,lwd=1,type="b",col="black",pch=2)
+mtext(expression(italic(Alnus)),side=3,line=1,cex=1)
+mtext(expression('31/25 '*degree*'C'),side=4,line=1,cex=1)
+
+mtext(expression('N fixation'),side=2,line=5.5,cex=1,outer=T)
+mtext(expression('(nmol N'[2]*' s'^-1*')'),side=2,line=3.5,cex=1,outer=T)
+mtext(expression('Time since switching to low N (days)'),side=1,line=3,cex=1,outer=T)
+
+
+### Figure S6
 nf<-layout(matrix(seq(1,8,1),2,4,byrow=T),rep(3,8),rep(3,8),T)
 layout.show(nf)
 par(oma=c(5,7,4,4))
@@ -4378,7 +5557,7 @@ mtext(expression('Apparent whole-plant photosynthesis'),side=2,line=5.5,cex=1,ou
 mtext(expression('(normalized to 1 at day = 0)'),side=2,line=3.5,cex=1,outer=T)
 mtext(expression('Time since switching to high N (days)'),side=1,line=3,cex=1,outer=T)
 
-### Figure S5
+### Figure S7
 nf<-layout(matrix(seq(1,8,1),2,4,byrow=T),rep(3,8),rep(3,8),T)
 layout.show(nf)
 par(oma=c(5,7,4,4))
@@ -4530,7 +5709,7 @@ mtext(expression('Apparent whole-plant photosynthesis'),side=2,line=5.5,cex=1,ou
 mtext(expression('(nmol CO'[2]*' s'^-1*')'),side=2,line=3.5,cex=1,outer=T)
 mtext(expression('Time since switching to high N (days)'),side=1,line=3,cex=1,outer=T)
 
-### Figure S6
+### Figure S8
 nf<-layout(matrix(seq(1,8,1),2,4,byrow=T),rep(3,8),rep(3,8),T)
 layout.show(nf)
 par(oma=c(5,7,4,4))
@@ -4689,7 +5868,7 @@ mtext(expression('Apparent whole-plant photosynthesis'),side=2,line=5.5,cex=1,ou
 mtext(expression('(normalized to 1 at day = 0)'),side=2,line=3.5,cex=1,outer=T)
 mtext(expression('Time since switching to low N (days)'),side=1,line=3,cex=1,outer=T)
 
-### Figure S7
+### Figure S9
 nf<-layout(matrix(seq(1,8,1),2,4,byrow=T),rep(3,8),rep(3,8),T)
 layout.show(nf)
 par(oma=c(5,7,4,4))
@@ -4841,7 +6020,7 @@ mtext(expression('Apparent whole-plant photosynthesis'),side=2,line=5.5,cex=1,ou
 mtext(expression('(nmol CO'[2]*' s'^-1*')'),side=2,line=3.5,cex=1,outer=T)
 mtext(expression('Time since switching to low N (days)'),side=1,line=3,cex=1,outer=T)
 
-### Figure S8
+### Figure S10
 nf<-layout(matrix(seq(1,8,1),2,4,byrow=T),rep(3,8),rep(3,8),T)
 layout.show(nf)
 par(oma=c(5,7,4,4))
@@ -5001,7 +6180,7 @@ mtext(expression('Whole-symbiosis respiration'),side=2,line=5.5,cex=1,outer=T)
 mtext(expression('(normalized to 1 at day = 0)'),side=2,line=3.5,cex=1,outer=T)
 mtext(expression('Time since switching to high N (days)'),side=1,line=3,cex=1,outer=T)
 
-### Figure S9
+### Figure S11
 nf<-layout(matrix(seq(1,8,1),2,4,byrow=T),rep(3,8),rep(3,8),T)
 layout.show(nf)
 par(oma=c(5,7,4,4))
@@ -5153,7 +6332,7 @@ mtext(expression('Whole-symbiosis respiration'),side=2,line=5.5,cex=1,outer=T)
 mtext(expression('(nmol CO'[2]*' s'^-1*')'),side=2,line=3.5,cex=1,outer=T)
 mtext(expression('Time since switching to high N (days)'),side=1,line=3,cex=1,outer=T)
 
-### Figure S10
+### Figure S12
 nf<-layout(matrix(seq(1,8,1),2,4,byrow=T),rep(3,8),rep(3,8),T)
 layout.show(nf)
 par(oma=c(5,7,4,4))
@@ -5312,7 +6491,7 @@ mtext(expression('Whole-symbiosis respiration'),side=2,line=5.5,cex=1,outer=T)
 mtext(expression('(normalized to 1 at day = 0)'),side=2,line=3.5,cex=1,outer=T)
 mtext(expression('Time since switching to low N (days)'),side=1,line=3,cex=1,outer=T)
 
-### Figure S11
+### Figure S13
 nf<-layout(matrix(seq(1,8,1),2,4,byrow=T),rep(3,8),rep(3,8),T)
 layout.show(nf)
 par(oma=c(5,7,4,4))
@@ -5464,3 +6643,30 @@ mtext(expression('31/25 '*degree*'C'),side=4,line=1,cex=1)
 mtext(expression('Whole-symbiosis respiration'),side=2,line=5.5,cex=1,outer=T)
 mtext(expression('(nmol CO'[2]*' s'^-1*')'),side=2,line=3.5,cex=1,outer=T)
 mtext(expression('Time since switching to low N (days)'),side=1,line=3,cex=1,outer=T)
+
+### Figure S14
+dev.off()
+par(pty="s")
+par(oma=c(5,5,4,4))
+par(mar=c(0,0,0,0))
+
+newx <- seq(min(df.down$Resp), max(df.down$Resp), length.out = 200)
+pred_log <- predict(
+  tL.down.size.lm.log,
+  newdata  = data.frame(Resp = newx),
+  interval = "confidence",
+  level    = 0.95
+)
+fit <- 10^pred_log[,"fit"]
+lwr <- 10^pred_log[,"lwr"]
+upr <- 10^pred_log[,"upr"]
+
+plot(df.down$tL~df.down$Resp,las=1,pch=df.down$pct,col=df.down$color,xlab=NA,ylab=NA,cex=1.5)
+lines(newx, fit, lwd = 3)
+lines(newx, lwr, lty = 2, lwd = 2)
+lines(newx, upr, lty = 2, lwd = 2)
+mtext(expression('Whole-symbiosis respiration'),side=1,line=2.5,cex=1.2,outer=T)
+mtext(expression('(nmol CO'[2]*' s'^-1*')'),side=1,line=4,cex=1.2,outer=T)
+mtext(expression(italic(t)[L]*' (days)'),side=2,line=2.5,cex=1.2,outer=T)
+legend("topleft",legend = c("Temperate cold", "Temperate warm", "Tropical cold", "Tropical warm"),
+       pch = c(16,16,17,17),pt.cex=1.5,cex=1.2,col=c("blue","red","blue","red"),bty="n")
